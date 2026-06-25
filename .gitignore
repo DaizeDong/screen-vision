@@ -1,0 +1,30 @@
+# --- Python ---
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# --- self-evolve workspace ---
+.sie/
+
+# --- secrets (never commit; no key is required by this skill) ---
+.env
+*.key
+*.token
+*credentials*
+*secret*
+.secrets/
+
+# --- runtime artifacts (screenshots / annotated / element JSON / OCR models) ---
+screen-vision-runs/
+**/run-*/
+*.onnx
+models/
+*_gate_*.png
+screen.png
+annotated.png
+elements.json

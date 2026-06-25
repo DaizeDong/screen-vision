@@ -1,0 +1,18 @@
+# screen-vision dependencies — ALL OPTIONAL.
+# The skill runs on the Python standard library alone (pure-ctypes GDI capture,
+# stdlib PNG writer, ctypes click). Install these to unlock richer layers.
+
+# Recommended core: structured elements + fast/cross-platform capture + annotation
+uiautomation>=2.0 ; platform_system == "Windows"   # UIA element tree (the primary read path)
+mss>=9.0                                             # fast, cross-platform screen capture
+pillow>=10.0                                         # Set-of-Mark annotated PNG (capture still works without it)
+
+# OCR (read text the accessibility tree does not expose) — pick ONE:
+# winocr>=0.0.16 ; platform_system == "Windows"     # Windows-native OCR, no model download
+# rapidocr-onnxruntime>=1.3                          # cross-platform, offline (pulls onnxruntime + opencv)
+
+# Optional: capture occluded / hardware-accelerated / background windows
+# windows-capture>=2.0 ; platform_system == "Windows"
+
+# NOT bundled: OmniParser / grounding-VLM vision backend (off by default; AGPL weights are
+# user-supplied — see skills/screen-vision/reference/backends.md).

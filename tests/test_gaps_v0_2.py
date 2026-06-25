@@ -55,7 +55,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "..", "skills", "screen-vision", "scripts")
 sys.path.insert(0, os.path.abspath(SCRIPTS))
 
-import _common as C  # noqa: E402
+import pure_ops as C  # noqa: E402  (pure-stdlib, patch-gate-reachable home for v0.2 gaps)
 
 _GAP = pytest.mark.xfail(
     strict=False,

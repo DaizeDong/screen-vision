@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
-"""v0.2 capability-gap signals — green-baseline headroom for self-evolve.
+"""v0.2 capability tests — region-targeted OCR + black-screen auto-retry.
 
-These tests encode genuine, currently-UNIMPLEMENTED architecture requirements
-(see ARCHITECTURE.md). Each is marked ``xfail(strict=False)`` so that:
-
-  * on the v0.1 BASE code the missing capability makes the body raise/assert
-    -> pytest reports XFAIL (score 0.0) **without** failing the run, so the
-    baseline stays exit_code==0 and self-evolve keeps profiling it as tier A;
-  * once a candidate IMPLEMENTS the capability the body passes -> pytest
-    reports XPASS (score 1.0).
-
-self-evolve's per-test grader maps XFAIL->0.0 and XPASS->1.0 (see
-tools/sie/evaluate.py::_parse_per_test, "XPASS = fix made a xfail test pass"),
-so an implementing candidate yields index-aligned (0.0 -> 1.0) acceptor pairs:
-a *capability-gated* positive signal (not mere test padding — the same test
-flips only because the function now exists and behaves correctly).
+These were originally ``xfail(strict=False)`` capability-gap markers carrying
+self-evolve headroom: XFAIL on the v0.1 base, XPASS once implemented. Both
+capabilities are now implemented and stably passing, so the xfail markers have
+been removed and these are ordinary regression tests — a future regression now
+surfaces as a real FAIL instead of being silently hidden as an xpass.
 
 These tests are HERMETIC: pure logic + a fake capture callable; no GUI, no
 network, no hardware.
@@ -49,18 +40,11 @@ Contracts an implementation MUST satisfy:
 import os
 import sys
 
-import pytest
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "..", "skills", "screen-vision", "scripts")
 sys.path.insert(0, os.path.abspath(SCRIPTS))
 
 import pure_ops as C  # noqa: E402  (pure-stdlib, patch-gate-reachable home for v0.2 gaps)
-
-_GAP = pytest.mark.xfail(
-    strict=False,
-    reason="v0.2 capability gap; XPASS once implemented (self-evolve headroom)",
-)
 
 
 def _area(r):
@@ -76,13 +60,11 @@ def _center_in(rect, box):
 # --------------------------------------------------------------------------- #
 # Gap 1 — region-targeted OCR pre-filter                                       #
 # --------------------------------------------------------------------------- #
-@_GAP
 def test_compute_ocr_regions_exists():
     assert hasattr(C, "compute_ocr_regions") and callable(C.compute_ocr_regions), \
         "missing compute_ocr_regions (ARCH 1.5 region-targeted OCR)"
 
 
-@_GAP
 def test_compute_ocr_regions_no_uia_covers_region():
     region = [0, 0, 800, 600]
     out = C.compute_ocr_regions(region, [])
@@ -90,14 +72,12 @@ def test_compute_ocr_regions_no_uia_covers_region():
     assert sum(_area(r) for r in out) >= 0.9 * _area(region)
 
 
-@_GAP
 def test_compute_ocr_regions_full_cover_is_empty():
     region = [0, 0, 800, 600]
     out = C.compute_ocr_regions(region, [[-10, -10, 810, 610]])
     assert out == [] or sum(_area(r) for r in out) <= 0.02 * _area(region)
 
 
-@_GAP
 def test_compute_ocr_regions_partial_cover_excludes_box():
     region = [0, 0, 800, 600]
     box = [0, 0, 800, 300]  # top half covered
@@ -120,13 +100,11 @@ def _white(w, h):
     return b"\xff" * (w * h * 3)
 
 
-@_GAP
 def test_capture_with_retry_exists():
     assert hasattr(C, "capture_with_retry") and callable(C.capture_with_retry), \
         "missing capture_with_retry (ARCH 1.3 black-screen auto-retry)"
 
 
-@_GAP
 def test_capture_with_retry_reshoots_on_black():
     w, h = 16, 16
     seq = [(_black(w, h), w, h, "gdi"), (_white(w, h), w, h, "mss")]
@@ -143,7 +121,6 @@ def test_capture_with_retry_reshoots_on_black():
     assert res["blackness"] <= 0.02, "final grab must be the non-black one"
 
 
-@_GAP
 def test_capture_with_retry_no_retry_when_clean():
     w, h = 16, 16
     calls = {"n": 0}
@@ -156,7 +133,6 @@ def test_capture_with_retry_no_retry_when_clean():
     assert res["attempts"] == 1 and calls["n"] == 1, "clean first grab -> no retry"
 
 
-@_GAP
 def test_capture_with_retry_bounded_when_all_black():
     w, h = 16, 16
     calls = {"n": 0}

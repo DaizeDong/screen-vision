@@ -175,3 +175,35 @@ def test_capture_degrades_without_crash_on_empty_region():
     res = json.loads(out.stdout)
     assert res.get("ok") is True
     assert int(res["counts"]["total"]) >= 0
+
+
+# --------------------------------------------------------------------------- #
+# section 4.6 — malformed --target must degrade gracefully (never hard-crash)  #
+# Regression guard for the audit spec-gap: capture.py self-documents "degrades #
+# gracefully, never hard-crashes", but a short/non-numeric region/monitor/hwnd #
+# spec used to raise an uncaught ValueError traceback (exit != 0). It must now  #
+# fall back to full-screen with a warning and still emit ok JSON, exit 0.      #
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("spec", [
+    "region:1,2,3",        # too few segments
+    "region:0,0,0,0",      # zero-size
+    "region:0,0,-5,-5",    # negative size
+    "region:a,b,c,d",      # non-numeric
+    "monitor:abc",         # non-numeric monitor index
+    "hwnd:xyz",            # non-numeric window handle
+])
+def test_capture_malformed_target_degrades_no_crash(spec):
+    import json
+    import subprocess
+
+    out = subprocess.run(
+        [sys.executable, os.path.join(SCRIPTS, "capture.py"),
+         "--target", spec, "--layers", "uia", "--summary-n", "0", "--annotate", "false"],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert out.returncode == 0, "hard-crashed on %r: %s" % (spec, out.stderr[-400:])
+    res = json.loads(out.stdout)
+    assert res.get("ok") is True, "non-ok result on %r: %s" % (spec, out.stdout[-300:])
+    warns = res.get("warnings", [])
+    assert any(("malformed" in w) or ("full screen" in w) or ("falling back" in w)
+               for w in warns), "expected a graceful-fallback warning, got %s" % warns

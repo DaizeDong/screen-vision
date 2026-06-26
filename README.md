@@ -7,7 +7,7 @@ Screenshot any desktop window and get its buttons + text as pixel-accurate, clic
 [![Accessibility-first](https://img.shields.io/badge/Reads-UIA%20%2B%20OCR-green?style=flat)](skills/screen-vision/reference/backends.md)
 [![Read-only default](https://img.shields.io/badge/Click-opt--in%20%2F%20dry--run-green?style=flat)](skills/screen-vision/reference/schema.md)
 [![Languages](https://img.shields.io/badge/Languages-EN%20%2F%20CN-blue?style=flat)](#languages)
-[![Roadmap](https://img.shields.io/badge/Roadmap-v0.1.0-purple?style=flat)](ROADMAP.md)
+[![Roadmap](https://img.shields.io/badge/Roadmap-v0.1.1-purple?style=flat)](ROADMAP.md)
 
 [English](README.md) | [中文版](README_CN.md)
 
@@ -112,7 +112,7 @@ beyond the browser.*
  "scale": 1.5, "origin": [0, 0]}
 ```
 
-`click.py --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}` and the display reads `77`
+`click.py --elements-json <path> --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}` and the display reads `77`
 after two clicks — a closed-loop, program-verifiable result (see `tests/run_gate.py`).
 
 ## Limitations

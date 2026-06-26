@@ -1,6 +1,6 @@
 {
   "name": "screen-vision",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Screenshot and read on-screen UI elements/buttons with pixel coordinates (accessibility tree + OCR); optional click. For desktop/native/game GUIs beyond the browser.",
   "author": {
     "name": "DaizeDong"

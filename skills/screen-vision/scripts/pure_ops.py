@@ -76,7 +76,31 @@ def compute_ocr_regions(region, uia_boxes, grid=8):
     Suggested implementation: split region into grid*grid equal cells; keep a
     cell iff its center point is outside every uia_box. Pure stdlib only.
     """
-    raise NotImplementedError("compute_ocr_regions: implement per docstring contract")
+    l, t, r, b = region
+    width = r - l
+    height = b - t
+    if width <= 0 or height <= 0:
+        return []
+    grid = max(1, int(grid))
+    out = []
+    for gy in range(grid):
+        ct = t + int(round(gy * height / grid))
+        cb = b if gy == grid - 1 else t + int(round((gy + 1) * height / grid))
+        for gx in range(grid):
+            cl = l + int(round(gx * width / grid))
+            cr = r if gx == grid - 1 else l + int(round((gx + 1) * width / grid))
+            if cr <= cl or cb <= ct:
+                continue
+            cx = (cl + cr) / 2.0
+            cy = (ct + cb) / 2.0
+            covered = False
+            for bx in uia_boxes:
+                if bx[0] <= cx <= bx[2] and bx[1] <= cy <= bx[3]:
+                    covered = True
+                    break
+            if not covered:
+                out.append([cl, ct, cr, cb])
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -105,4 +129,17 @@ def capture_with_retry(grab_fn, max_attempts=3, black_threshold=0.98):
 
     Pure stdlib only (uses _blackness above).
     """
-    raise NotImplementedError("capture_with_retry: implement per docstring contract")
+    max_attempts = max(1, int(max_attempts))
+    attempts = 0
+    rgb = b""
+    w = h = 0
+    backend = None
+    blk = 1.0
+    while attempts < max_attempts:
+        rgb, w, h, backend = grab_fn()
+        attempts += 1
+        blk = _blackness(rgb, w, h)
+        if blk <= black_threshold:
+            break
+    return {"rgb": rgb, "w": w, "h": h, "backend": backend,
+            "attempts": attempts, "blackness": blk}

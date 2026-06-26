@@ -19,6 +19,16 @@ import ctypes
 
 IS_WINDOWS = platform.system() == "Windows"
 
+# The scripts emit `ensure_ascii=False` JSON. On a non-English Windows console a
+# redirected stdout pipe defaults to the locale codepage (e.g. cp936), which
+# corrupts any non-ASCII UIA label and breaks the documented UTF-8 JSON contract
+# for downstream readers. Pin both streams to UTF-8 (best-effort, Py3.7+).
+for _stream in ("stdout", "stderr"):
+    try:
+        getattr(sys, _stream).reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # --------------------------------------------------------------------------- #
 # L0 — DPI awareness (must run before any UI/screenshot/click). Idempotent.    #
 # --------------------------------------------------------------------------- #

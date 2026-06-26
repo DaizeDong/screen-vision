@@ -23,6 +23,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _common as C  # noqa: E402
+import pure_ops as P  # noqa: E402  (pure-stdlib helpers: black-retry, region-OCR)
 
 CLICKABLE_TYPES = {
     "button", "menuitem", "checkbox", "radiobutton", "tabitem", "listitem",
@@ -269,32 +270,49 @@ def annotate(png_path, out_path, elements, origin, warnings):
 def resolve_target(spec, monitors, warnings):
     spec = (spec or "all").strip()
     vx, vy, vw, vh = C.virtual_screen_rect()
-    if spec == "all":
+
+    def _full(reason=None):
+        # Single graceful fallback: never hard-crash on a malformed target spec.
+        if reason:
+            warnings.append(reason)
         return {"kind": "all", "rect": [vx, vy, vx + vw, vy + vh],
                 "origin": [vx, vy], "monitor": monitors[0] if monitors else None}
+
+    if spec == "all":
+        return _full()
     if spec.startswith("monitor:"):
-        idx = int(spec.split(":", 1)[1])
+        try:
+            idx = int(spec.split(":", 1)[1])
+        except (ValueError, IndexError):
+            return _full("target: malformed monitor index in %r -> full screen" % spec)
         m = next((m for m in monitors if m["index"] == idx), monitors[0])
         return {"kind": "monitor", "rect": m["rect"], "origin": m["origin"], "monitor": m}
     if spec.startswith("region:"):
-        l, t, w, h = [int(x) for x in spec.split(":", 1)[1].split(",")]
+        try:
+            parts = [int(x) for x in spec.split(":", 1)[1].split(",")]
+            if len(parts) != 4:
+                raise ValueError("region needs 4 comma-separated ints l,t,w,h, got %d" % len(parts))
+            l, t, w, h = parts
+            if w <= 0 or h <= 0:
+                raise ValueError("region width/height must be positive (got %d,%d)" % (w, h))
+        except (ValueError, IndexError) as e:
+            return _full("target: malformed region in %r (%s) -> full screen" % (spec, e))
         return {"kind": "region", "rect": [l, t, l + w, t + h], "origin": [l, t], "monitor": None}
     if spec.startswith("hwnd:"):
-        hwnd = int(spec.split(":", 1)[1])
+        try:
+            hwnd = int(spec.split(":", 1)[1])
+        except (ValueError, IndexError):
+            return _full("target: malformed hwnd in %r -> full screen" % spec)
         return {"kind": "window", "hwnd": hwnd, "rect": None, "origin": None, "monitor": None}
     if spec.startswith("window:"):
         title = spec.split(":", 1)[1].strip().strip('"').strip("'")
         found = C.find_window_by_title(title)
         if not found:
-            warnings.append("target: no window matching %r -> falling back to full screen" % title)
-            return {"kind": "all", "rect": [vx, vy, vx + vw, vy + vh],
-                    "origin": [vx, vy], "monitor": monitors[0] if monitors else None}
+            return _full("target: no window matching %r -> falling back to full screen" % title)
         hwnd, rect, real_title = found
         return {"kind": "window", "hwnd": hwnd, "rect": rect,
                 "origin": [rect[0], rect[1]], "monitor": None, "title": real_title}
-    warnings.append("target: unrecognized %r -> full screen" % spec)
-    return {"kind": "all", "rect": [vx, vy, vx + vw, vy + vh],
-            "origin": [vx, vy], "monitor": monitors[0] if monitors else None}
+    return _full("target: unrecognized %r -> full screen" % spec)
 
 
 def main():
@@ -334,7 +352,13 @@ def main():
     rect = target["rect"]
     l, t, r, b = rect
     origin = [l, t]
-    rgb, w, h, backend = C.capture_region(l, t, r - l, b - t)
+    # ARCH 1.3: black-screen auto-retry — re-grab once if the frame comes back near-black.
+    _cap = P.capture_with_retry(lambda: C.capture_region(l, t, r - l, b - t),
+                                max_attempts=2, black_threshold=0.98)
+    rgb, w, h, backend = _cap["rgb"], _cap["w"], _cap["h"], _cap["backend"]
+    if _cap["attempts"] > 1:
+        warnings.append("capture: re-grabbed %d extra time(s) after a near-black frame "
+                        "(ARCH 1.3 black-screen auto-retry)" % (_cap["attempts"] - 1))
     screen_png = os.path.join(out_dir, "screen.png")
     C.write_png(screen_png, rgb, w, h)
     blk = C.blackness(rgb, w, h)
@@ -348,9 +372,15 @@ def main():
         elements += collect_uia(target, a.max_depth, rect, warnings)
     uia_boxes = [e["rect"] for e in elements]
 
-    # L2b OCR (fills only UIA-missing text)
+    # L2b OCR (fills only UIA-missing text). ARCH 1.5: never blind full-screen OCR —
+    # skip entirely when UIA already covers the captured region.
     if "ocr" in layers:
-        elements += collect_ocr(screen_png, a.ocr_engine, origin, rect, uia_boxes, warnings)
+        ocr_regions = P.compute_ocr_regions(rect, uia_boxes)
+        if not ocr_regions:
+            warnings.append("ocr: skipped — UIA covers the whole captured region "
+                            "(ARCH 1.5: no blind full-screen OCR)")
+        else:
+            elements += collect_ocr(screen_png, a.ocr_engine, origin, rect, uia_boxes, warnings)
 
     # L2c vision (optional, default OFF — not bundled; AGPL backend is user-supplied)
     if "vision" in layers:

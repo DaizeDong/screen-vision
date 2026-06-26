@@ -1,6 +1,6 @@
 # Roadmap
 
-Current: **v0.1.0**
+Current: **v0.1.1**
 
 ## v0.1.0 (current)
 - Windows-first hybrid pipeline: DPI-aware capture (mss / pure-ctypes GDI fallback) →

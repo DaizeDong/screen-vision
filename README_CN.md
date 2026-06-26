@@ -7,7 +7,7 @@
 [![Accessibility-first](https://img.shields.io/badge/Reads-UIA%20%2B%20OCR-green?style=flat)](skills/screen-vision/reference/backends.md)
 [![Read-only default](https://img.shields.io/badge/Click-opt--in%20%2F%20dry--run-green?style=flat)](skills/screen-vision/reference/schema.md)
 [![Languages](https://img.shields.io/badge/Languages-EN%20%2F%20CN-blue?style=flat)](#语言)
-[![Roadmap](https://img.shields.io/badge/Roadmap-v0.1.0-purple?style=flat)](ROADMAP.md)
+[![Roadmap](https://img.shields.io/badge/Roadmap-v0.1.1-purple?style=flat)](ROADMAP.md)
 
 [English](README.md) | [中文版](README_CN.md)
 
@@ -90,7 +90,7 @@ python skills/screen-vision/scripts/click.py --elements-json <path> --id 30 --co
  "scale": 1.5, "origin": [0, 0]}
 ```
 
-`click.py --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}`，点两次后显示区读出 `77`——一个闭环、程序可验证的结果（见 `tests/run_gate.py`）。
+`click.py --elements-json <path> --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}`，点两次后显示区读出 `77`——一个闭环、程序可验证的结果（见 `tests/run_gate.py`）。
 
 ## 局限
 

@@ -11,7 +11,7 @@ description: Screenshot and read on-screen UI elements/buttons with pixel coordi
 
 ## When to use / when to stop
 
-Use this when an agent needs to *see and act on the desktop* — capture the screen, get a structured
+Use this when an agent needs to *see and act on the desktop*, capture the screen, get a structured
 list of buttons/text/inputs with **physical-pixel** coordinates, optionally click one.
 
 - Native apps, Win32/WinUI, Electron, games, remote-desktop, any non-browser window → **here**.
@@ -21,15 +21,15 @@ list of buttons/text/inputs with **physical-pixel** coordinates, optionally clic
 
 ## Workflow (thin)
 
-1. **Probe once** — `python scripts/probe.py`. It reports DPI awareness, monitors, and which backends
+1. **Probe once**, `python scripts/probe.py`. It reports DPI awareness, monitors, and which backends
    (UIA / OCR / annotate) are available, so you know what the next step can deliver.
-2. **Capture (read-only, the default)** — `python scripts/capture.py --target ...`. Writes
+2. **Capture (read-only, the default)**, `python scripts/capture.py --target ...`. Writes
    `screen.png`, an optional Set-of-Mark `annotated.png`, and `elements.json` (full), and prints a
    compact JSON summary + artifact paths to stdout. Read the summary to pick an element by **id**.
-3. **Decide from JSON, confirm layout from the annotated PNG** — the JSON carries `center`, `rect`,
+3. **Decide from JSON, confirm layout from the annotated PNG**, the JSON carries `center`, `rect`,
    `label`, `clickable`, `patterns`, `source`. Read the JSON to save tokens; only `Read` the annotated
    image when you need to eyeball the layout.
-4. **Click (opt-in)** — `python scripts/click.py --elements-json <path> --id <N>`. **Dry-run by
+4. **Click (opt-in)**, `python scripts/click.py --elements-json <path> --id <N>`. **Dry-run by
    default** (reports what it *would* click). Add `--confirm` to actuate; it prefers a coordinate-free
    UIA `Invoke`/`Toggle`/`SetValue` and only falls back to a physical click when no pattern exists.
 
@@ -45,14 +45,14 @@ Backend choices, install, platform/DPI caveats: **`reference/backends.md`**.
 ## Hard rules
 
 1. **DPI awareness is non-negotiable.** Scripts set Per-Monitor-V2 on import, before any
-   capture/UIA/click. Never bypass it — without it, screenshots are virtualized-stretched, UIA rects
+   capture/UIA/click. Never bypass it, without it, screenshots are virtualized-stretched, UIA rects
    can read `(0,0,0,0)`, and clicks drift further the farther from the origin.
 2. **Read-only by default; clicking is an explicit, dry-run-first opt-in.** Only login / payment /
-   2FA / destructive confirmations go to the human — never auto-click those.
+   2FA / destructive confirmations go to the human, never auto-click those.
 3. **Coordinates are physical pixels** with `{monitor, scale, origin}` metadata. Real screen point =
    element `center` (already absolute). Multi-monitor origins can be negative.
 4. **Pick elements by `id`; let the script resolve the coordinate.** Never have the model emit raw
-   x/y — use the Set-of-Mark id and let `click.py` re-resolve via UIA.
+   x/y, use the Set-of-Mark id and let `click.py` re-resolve via UIA.
 5. **Degrade loud, never silent.** Missing backend, black/occluded capture, locked desktop, Wayland →
    surfaced as a `warnings[]`/error in the JSON, never a confident-but-wrong result.
 
@@ -65,4 +65,4 @@ committed.
 ## Progressive loading
 
 This `SKILL.md` is the only always-loaded file. Load `reference/schema.md` (CLI + JSON contract) or
-`reference/backends.md` (libraries, install, platform caveats) on demand — never both preemptively.
+`reference/backends.md` (libraries, install, platform caveats) on demand, never both preemptively.

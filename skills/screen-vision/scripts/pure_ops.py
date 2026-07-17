@@ -47,7 +47,7 @@ def _blackness(rgb, w, h, sample=20000):
 
 
 # --------------------------------------------------------------------------- #
-# Gap 1 — region-targeted OCR pre-filter (ARCHITECTURE.md section 1.5)         #
+# Gap 1, region-targeted OCR pre-filter (ARCHITECTURE.md section 1.5)         #
 #   "OCR 铁律: 只对 UIA 缺文字的局部区域跑, 别全屏盲跑."                       #
 # --------------------------------------------------------------------------- #
 def compute_ocr_regions(region, uia_boxes, grid=8):
@@ -104,7 +104,7 @@ def compute_ocr_regions(region, uia_boxes, grid=8):
 
 
 # --------------------------------------------------------------------------- #
-# Gap 2 — black-screen auto-retry (ARCHITECTURE.md section 1.3)               #
+# Gap 2, black-screen auto-retry (ARCHITECTURE.md section 1.3)               #
 #   "每步对结果做黑屏检测 -> 自动回退或把窗口前置后重抓."                     #
 # --------------------------------------------------------------------------- #
 def capture_with_retry(grab_fn, max_attempts=3, black_threshold=0.98):

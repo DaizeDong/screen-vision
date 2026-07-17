@@ -58,7 +58,7 @@ def _center_in(rect, box):
 
 
 # --------------------------------------------------------------------------- #
-# Gap 1 — region-targeted OCR pre-filter                                       #
+# Gap 1, region-targeted OCR pre-filter                                       #
 # --------------------------------------------------------------------------- #
 def test_compute_ocr_regions_exists():
     assert hasattr(C, "compute_ocr_regions") and callable(C.compute_ocr_regions), \
@@ -90,7 +90,7 @@ def test_compute_ocr_regions_partial_cover_excludes_box():
 
 
 # --------------------------------------------------------------------------- #
-# Gap 2 — black-screen auto-retry                                             #
+# Gap 2, black-screen auto-retry                                             #
 # --------------------------------------------------------------------------- #
 def _black(w, h):
     return b"\x00" * (w * h * 3)

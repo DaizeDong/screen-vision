@@ -1,6 +1,6 @@
 # screen-vision
 
-Screenshot any desktop window and get its buttons + text as pixel-accurate, clickable JSON — accessibility-first, vision as fallback.
+Screenshot any desktop window and get its buttons + text as pixel-accurate, clickable JSON, accessibility-first, vision as fallback.
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -13,11 +13,11 @@ Screenshot any desktop window and get its buttons + text as pixel-accurate, clic
 
 ---
 
-## ⭐ Read this first — the design philosophy
+## ⭐ Read this first, the design philosophy
 
 Most "let the agent see the screen" tools start from a screenshot and ask a vision model "where is the
 button?". That is backwards. The operating system already exposes a **structured accessibility tree**
-(UI Automation) where every control's name, type, state, and exact rectangle are facts — no model, no
+(UI Automation) where every control's name, type, state, and exact rectangle are facts, no model, no
 guessing, no anti-aliasing or DPI ambiguity. So screen-vision is built on one principle:
 
 > **Read the accessibility tree first; use vision (OCR / icon models) only to fill its gaps; and never
@@ -44,19 +44,19 @@ patch-vs-root contrast and the real decision it produced).
 
 ## What it is (and isn't)
 
-It is a **CLI-script skill** (not an MCP server — capture→parse→return is stateless, so no resident
+It is a **CLI-script skill** (not an MCP server, capture→parse→return is stateless, so no resident
 socket/token cost) that gives an agent three verbs:
 
-- **`probe.py`** — what can this host actually do (DPI, monitors, which backends are installed)?
-- **`capture.py`** — screenshot + a structured element list with **physical-pixel** coordinates
+- **`probe.py`**, what can this host actually do (DPI, monitors, which backends are installed)?
+- **`capture.py`**, screenshot + a structured element list with **physical-pixel** coordinates
   (`screen.png` + Set-of-Mark `annotated.png` + `elements.json`).
-- **`click.py`** — optional, dry-run-by-default click on an element by `id` (UIA `Invoke` first,
+- **`click.py`**, optional, dry-run-by-default click on an element by `id` (UIA `Invoke` first,
   physical click only as fallback).
 
-It is **for** desktop / native / Win32 / WinUI / Electron / game / remote-desktop windows — anything
+It is **for** desktop / native / Win32 / WinUI / Electron / game / remote-desktop windows, anything
 **beyond the browser**.
 
-It is **not for** web pages — those have a live DOM, so route to **Playwright**. It is also not an
+It is **not for** web pages, those have a live DOM, so route to **Playwright**. It is also not an
 image generator/editor (that is `pixel-art` / image tools).
 
 It runs on **stdlib alone** (pure-ctypes screen grab + a stdlib PNG writer + ctypes click) and gets
@@ -74,7 +74,7 @@ Or clone manually:
 git clone https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
 ```
 
-Recommended backends (optional — the tool degrades without them):
+Recommended backends (optional, the tool degrades without them):
 
 ```bash
 pip install uiautomation mss pillow            # elements + fast capture + annotation
@@ -113,7 +113,7 @@ beyond the browser.*
 ```
 
 `click.py --elements-json <path> --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}` and the display reads `77`
-after two clicks — a closed-loop, program-verifiable result (see `tests/run_gate.py`).
+after two clicks, a closed-loop, program-verifiable result (see `tests/run_gate.py`).
 
 ## Limitations
 
@@ -121,7 +121,7 @@ after two clicks — a closed-loop, program-verifiable result (see `tests/run_ga
   (atomacos / AT-SPI) are not yet wired (capture-only fallback). Wayland blocks silent capture.
 - UIA blind spots (Chromium/Electron without `--force-renderer-accessibility`, Qt, Canvas, games)
   need the OCR fallback; the heavy vision backend (OmniParser / grounding VLM) is a deferred,
-  user-supplied stub (AGPL weights are not bundled — see `reference/backends.md`).
+  user-supplied stub (AGPL weights are not bundled, see `reference/backends.md`).
 - Reading an elevated (UAC) window requires running Python elevated too.
 
 ## Languages

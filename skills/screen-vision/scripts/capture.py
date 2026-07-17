@@ -33,7 +33,7 @@ CLICKABLE_TYPES = {
 
 
 # --------------------------------------------------------------------------- #
-# L2a — UIA tree (Windows). Window-scoped, depth-limited, pruned.             #
+# L2a, UIA tree (Windows). Window-scoped, depth-limited, pruned.             #
 # --------------------------------------------------------------------------- #
 def _uia_type(control_type_name):
     t = (control_type_name or "").replace("Control", "").lower()
@@ -169,7 +169,7 @@ def collect_uia(target, max_depth, region, warnings):
 
 
 # --------------------------------------------------------------------------- #
-# L2b — OCR (only fills text the UIA tree is missing).                         #
+# L2b, OCR (only fills text the UIA tree is missing).                         #
 # --------------------------------------------------------------------------- #
 def collect_ocr(png_path, engine, origin, region, uia_boxes, warnings):
     ox, oy = origin
@@ -235,7 +235,7 @@ def collect_ocr(png_path, engine, origin, region, uia_boxes, warnings):
 
 
 # --------------------------------------------------------------------------- #
-# L4 — Set-of-Mark annotation (best-effort; needs Pillow). No-op otherwise.   #
+# L4, Set-of-Mark annotation (best-effort; needs Pillow). No-op otherwise.   #
 # --------------------------------------------------------------------------- #
 def annotate(png_path, out_path, elements, origin, warnings):
     try:
@@ -352,7 +352,7 @@ def main():
     rect = target["rect"]
     l, t, r, b = rect
     origin = [l, t]
-    # ARCH 1.3: black-screen auto-retry — re-grab once if the frame comes back near-black.
+    # ARCH 1.3: black-screen auto-retry, re-grab once if the frame comes back near-black.
     _cap = P.capture_with_retry(lambda: C.capture_region(l, t, r - l, b - t),
                                 max_attempts=2, black_threshold=0.98)
     rgb, w, h, backend = _cap["rgb"], _cap["w"], _cap["h"], _cap["backend"]
@@ -372,7 +372,7 @@ def main():
         elements += collect_uia(target, a.max_depth, rect, warnings)
     uia_boxes = [e["rect"] for e in elements]
 
-    # L2b OCR (fills only UIA-missing text). ARCH 1.5: never blind full-screen OCR —
+    # L2b OCR (fills only UIA-missing text). ARCH 1.5: never blind full-screen OCR ,
     # skip entirely when UIA already covers the captured region.
     if "ocr" in layers:
         ocr_regions = P.compute_ocr_regions(rect, uia_boxes)
@@ -382,7 +382,7 @@ def main():
         else:
             elements += collect_ocr(screen_png, a.ocr_engine, origin, rect, uia_boxes, warnings)
 
-    # L2c vision (optional, default OFF — not bundled; AGPL backend is user-supplied)
+    # L2c vision (optional, default OFF, not bundled; AGPL backend is user-supplied)
     if "vision" in layers:
         warnings.append("vision: optional OmniParser/grounding backend not bundled "
                         "(AGPL weights are user-supplied). See reference/backends.md.")

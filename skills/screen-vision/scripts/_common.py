@@ -30,7 +30,7 @@ for _stream in ("stdout", "stderr"):
         pass
 
 # --------------------------------------------------------------------------- #
-# L0 — DPI awareness (must run before any UI/screenshot/click). Idempotent.    #
+# L0, DPI awareness (must run before any UI/screenshot/click). Idempotent.    #
 # --------------------------------------------------------------------------- #
 _DPI_STATE = {"set": False, "level": "none"}
 
@@ -58,7 +58,7 @@ def set_dpi_awareness():
     return _DPI_STATE["level"]
 
 
-# Self-arm on import — the #1 documented failure mode is forgetting this.
+# Self-arm on import, the #1 documented failure mode is forgetting this.
 set_dpi_awareness()
 
 
@@ -182,7 +182,7 @@ def enum_monitors():
 
 
 # --------------------------------------------------------------------------- #
-# L1 — screen capture. mss if present, else pure-ctypes GDI. Returns RGB bytes.#
+# L1, screen capture. mss if present, else pure-ctypes GDI. Returns RGB bytes.#
 # --------------------------------------------------------------------------- #
 def _capture_gdi(left, top, width, height):
     """Pure-ctypes BitBlt grab -> top-down RGB bytes. No third-party deps."""

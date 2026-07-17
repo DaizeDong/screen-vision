@@ -3,7 +3,7 @@
 The agent-facing contract. All coordinates are **physical pixels**; `center` is already absolute
 (screenshot-internal coord + region origin), so it can be passed straight to a click.
 
-## `capture.py` — read the screen (default read-only)
+## `capture.py`, read the screen (default read-only)
 
 ```
 python capture.py [options]
@@ -37,7 +37,7 @@ stdout (summary + artifact paths):
 ```
 
 `ok:false` cases carry an `error` code: `no_interactive_desktop` (locked / Session-0). Black/occluded
-captures still return `ok:true` but with a `capture: image is ~NN% black ...` warning — never a silent
+captures still return `ok:true` but with a `capture: image is ~NN% black ...` warning, never a silent
 blank.
 
 ## Element JSON schema (each element)
@@ -69,9 +69,9 @@ blank.
   engine confidence) > `vision` (optional backend, off by default).
 - `ids` are assigned largest-area-first and are stable within a single capture; the Set-of-Mark
   `annotated.png` uses the same ids.
-- OCR elements that overlap a UIA element (IoU > 0.10) are dropped in fusion — UIA wins.
+- OCR elements that overlap a UIA element (IoU > 0.10) are dropped in fusion, UIA wins.
 
-## `click.py` — opt-in click
+## `click.py`, opt-in click
 
 ```
 python click.py --elements-json <path> --id <N>
@@ -85,8 +85,8 @@ stdout: `{"ok":true,"acted":false,"dry_run":true,"method":"preview","target":{id
 On `--confirm`: `method` becomes `invoke:Invoke` (coordinate-free) or `coord` (physical), `acted:true`.
 Disabled/offscreen elements are refused with an error rather than mis-clicked.
 
-## `probe.py` — environment self-check
+## `probe.py`, environment self-check
 
 `{platform, dpi_awareness, is_wayland, admin, interactive_desktop, libs{...}, monitors[...],
 capabilities{screenshot, uia_elements, ocr, annotate, click_physical, click_invoke, vision_backend},
-notes[...]}` — run it first to know which capabilities the host can actually deliver.
+notes[...]}`, run it first to know which capabilities the host can actually deliver.

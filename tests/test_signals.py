@@ -27,7 +27,7 @@ import _common as C  # noqa: E402
 
 
 # --------------------------------------------------------------------------- #
-# section 4.x — pure geometry / fusion math (host-independent, always run)     #
+# section 4.x, pure geometry / fusion math (host-independent, always run)     #
 # --------------------------------------------------------------------------- #
 def test_iou_overlap_above_fusion_threshold():
     # IoU fusion rule (ARCH section 1.7): overlapping boxes must score > 0.10.
@@ -59,7 +59,7 @@ def test_blackness_empty_is_one():
 
 
 # --------------------------------------------------------------------------- #
-# section 4.1 — PNG writer correctness (stdlib, host-independent)              #
+# section 4.1, PNG writer correctness (stdlib, host-independent)              #
 # --------------------------------------------------------------------------- #
 def test_png_writer_header_and_dims(tmp_path):
     w, h = 5, 3
@@ -73,7 +73,7 @@ def test_png_writer_header_and_dims(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# section 1.2 / 4.1 — DPI awareness self-arm                                   #
+# section 1.2 / 4.1, DPI awareness self-arm                                   #
 # --------------------------------------------------------------------------- #
 def test_dpi_awareness_armed():
     lvl = C.set_dpi_awareness()
@@ -83,7 +83,7 @@ def test_dpi_awareness_armed():
 
 
 # --------------------------------------------------------------------------- #
-# section 1.3 / 4.3 — monitor geometry sanity (no GUI; pure win32 metrics)     #
+# section 1.3 / 4.3, monitor geometry sanity (no GUI; pure win32 metrics)     #
 # --------------------------------------------------------------------------- #
 def test_enum_monitors_shape():
     mons = C.enum_monitors()
@@ -97,7 +97,7 @@ def test_enum_monitors_shape():
 
 
 # --------------------------------------------------------------------------- #
-# section 4.1 — capture resolution match (read-only screenshot; DPI proof)     #
+# section 4.1, capture resolution match (read-only screenshot; DPI proof)     #
 # --------------------------------------------------------------------------- #
 def test_capture_resolution_matches_monitor():
     if not C.IS_WINDOWS:
@@ -123,7 +123,7 @@ def test_capture_region_not_all_black():
 
 
 # --------------------------------------------------------------------------- #
-# section 3.2 — element JSON schema contract (every field the agent relies on) #
+# section 3.2, element JSON schema contract (every field the agent relies on) #
 # --------------------------------------------------------------------------- #
 REQUIRED_ELEMENT_KEYS = {
     "id", "type", "label", "name", "automation_id", "class_name", "source",
@@ -178,7 +178,7 @@ def test_capture_degrades_without_crash_on_empty_region():
 
 
 # --------------------------------------------------------------------------- #
-# section 4.6 — malformed --target must degrade gracefully (never hard-crash)  #
+# section 4.6, malformed --target must degrade gracefully (never hard-crash)  #
 # Regression guard for the audit spec-gap: capture.py self-documents "degrades #
 # gracefully, never hard-crashes", but a short/non-numeric region/monitor/hwnd #
 # spec used to raise an uncaught ValueError traceback (exit != 0). It must now  #

@@ -63,7 +63,7 @@ pip install winocr                             # OCR(Windows 原生)，或:
 pip install rapidocr-onnxruntime               # OCR(跨平台)
 ```
 
-（维护者部署：源在 `CodesSelf/screen-vision`，通过 PowerShell junction 把 `skills/screen-vision` 挂到 `~/.claude/skills/screen-vision`。）
+（维护者部署：源在 `CodesClaude/screen-vision`，通过 PowerShell junction 把 `skills/screen-vision` 挂到 `~/.claude/skills/screen-vision`。）
 
 ## 快速开始
 

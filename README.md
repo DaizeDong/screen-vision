@@ -82,7 +82,7 @@ pip install winocr                             # OCR (Windows-native), or:
 pip install rapidocr-onnxruntime               # OCR (cross-platform)
 ```
 
-(Maintainer setup: source lives in `CodesSelf/screen-vision`, deployed to
+(Maintainer setup: source lives in `CodesClaude/screen-vision`, deployed to
 `~/.claude/skills/screen-vision` via a PowerShell junction to `skills/screen-vision`.)
 
 ## Quick start

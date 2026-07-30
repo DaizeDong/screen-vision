@@ -5,7 +5,7 @@ on it), three verbs.
 
 ## Before you change anything
 
-Read [PHILOSOPHY.md](PHILOSOPHY.md). A change is only accepted if it fits the five principles ,
+Read [PHILOSOPHY.md](PHILOSOPHY.md). A change is only accepted if it fits the five principles,
 especially: **UIA before vision (P1)**, **DPI awareness before pixels (P2)**, **verifiable clicks
 (P3)**, **read-only default (P4)**, **degrade loud (P5)**. A "feature" that violates one of these is a
 regression, not a contribution.

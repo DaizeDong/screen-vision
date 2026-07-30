@@ -26,9 +26,9 @@ annotation simply report as unavailable in `warnings[]`.
 |---|---|---|---|
 | L1 capture | `mss` | pure-ctypes GDI BitBlt | GDI works with zero deps on Windows; mss is faster + cross-platform |
 | L1 occluded window | `windows-capture` (WGC) | PrintWindow / BitBlt | not bundled; add only if you must read background/GPU windows |
-| L2a elements | `uiautomation` (Apache-2.0) |, | the main path; window-scoped, depth-limited, 12s time budget |
-| L2b OCR | `winocr` (Win) / `rapidocr-onnxruntime` |, | run only where UIA lacks text; engine `auto` picks per platform |
-| L2c vision | OmniParser / grounding VLM |, | **stub by default**, user-supplied (see AGPL note) |
+| L2a elements | `uiautomation` (Apache-2.0) | none | the main path; window-scoped, depth-limited, 12s time budget |
+| L2b OCR | `winocr` (Win) / `rapidocr-onnxruntime` | none | run only where UIA lacks text; engine `auto` picks per platform |
+| L2c vision | OmniParser / grounding VLM | none | **stub by default**, user-supplied (see AGPL note) |
 | annotate | `Pillow` | skipped (JSON still exact) | Set-of-Mark numbered overlay |
 | click | UIA `Invoke`/`Toggle`/`Select` | ctypes physical click | pattern path is coordinate-free and most robust |
 

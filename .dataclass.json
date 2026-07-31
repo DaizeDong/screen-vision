@@ -15,9 +15,13 @@
     "",
     "Enforced by tools/data_boundary.py in .githooks and in CI."
   ],
-  "_audited": "2026-07-13 -- swept for real-run output written back into this repo (every open(...,'a'), json.dump, write_text; every tracked *.jsonl / state / cache / report). This skill's writers all resolve OUTSIDE the repo, or it has no writers. No DATA-class path found. An empty list here is a CONCLUSION, not a default: it distinguishes 'audited, nothing to declare' from 'nobody has looked'.",
+  "_audited": "2026-07-31 RE-AUDIT (supersedes the 2026-07-13 sweep, which recorded an empty declaration for this repo). The earlier sweep asked only whether shipped code appends to a TRACKED file here. That question is too narrow: it clears every path that is gitignored, and .gitignore is advisory -- `git add -f` walks straight through it, which is the whole reason declarations exist. This pass asked instead whether shipped code or shipped docs can put REAL-RUN OUTPUT at a repo-relative path at all. ANSWER: YES, and it is among the most sensitive output in the fleet: a screenshot plus a full accessibility-tree dump of whatever was on the operator's actual screen. capture.py defaults out_dir to the OS temp dir, which is outside any repo, but --out-dir is a plain flag and `--out-dir .` run from here drops screen.png, annotated.png and elements.json into the repo root under exactly those names. This repo's .gitignore already lists all three. They are declared data_sealed rather than data on purpose: two of the three are PNG bitmaps, for which a .example is not a schema but a decoy file, and the third travels with them as one capture. data_sealed is checked identically to data (never tracked) and owes no schema, which is the honest mechanical fit. No directory-form declaration is possible here because the run directory name is a timestamp and this checker matches by prefix, not by glob.",
   "data": [],
-  "data_sealed": [],
+  "data_sealed": [
+    "screen.png",
+    "annotated.png",
+    "elements.json"
+  ],
   "fixture": [],
   "_data_home": "~/.screen-vision-config/data/   (override with $SCREEN_VISION_DATA_DIR). If this skill ever needs to record real-run output, it goes THERE -- never back into this repo."
 }

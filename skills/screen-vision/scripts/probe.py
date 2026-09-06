@@ -16,17 +16,53 @@ import _common as C  # noqa: E402
 
 
 def gpu_present():
-    # best-effort, no hard deps
+    """True / False / None, where None means the probe could not answer -- not "no GPU".
+
+    THE TIMEOUT WAS 8 SECONDS AND THE COMMAND TAKES 13. Measured on this machine, three consecutive
+    runs of the wmic call: 12.52s, 14.05s, 13.20s, every one of them returning the GPU correctly. So
+    the probe timed out 100% of the time, the bare `except Exception: pass` swallowed it, and a
+    definite YES was reported as an indistinguishable "unknown" on every single run.
+
+    The slowness is not this command's fault and not fixable by picking a different one. Timed here:
+    wmic 16.8s, Get-CimInstance 13.5s, Get-PnpDevice 15.6s. Enumerating display devices is simply
+    slow on this box, the same shape as its event log being 50x slower than the others. So the cap
+    goes to 30s, comfortably past the measured 17s worst case, rather than to a number that merely
+    beats today's median.
+
+    The other half matters more than the number. "Timed out" and "no GPU found" used to share one
+    return value, so nothing downstream could tell a failed probe from a real answer. They are now
+    separate, and the reason is carried on the function so the report can say which.
+    """
+    gpu_present.reason = None
     try:
         import subprocess
-        if C.IS_WINDOWS:
-            out = subprocess.run(["wmic", "path", "win32_VideoController", "get", "name"],
-                                 capture_output=True, text=True, timeout=8)
-            txt = (out.stdout or "").lower()
-            return any(k in txt for k in ("nvidia", "amd", "radeon", "intel arc"))
-    except Exception:
-        pass
-    return None  # unknown
+        if not C.IS_WINDOWS:
+            gpu_present.reason = "not implemented on this platform"
+            return None
+        budget = 30
+        out = subprocess.run(["wmic", "path", "win32_VideoController", "get", "name"],
+                             capture_output=True, text=True, timeout=budget)
+        txt = (out.stdout or "").lower()
+        return any(k in txt for k in ("nvidia", "amd", "radeon", "intel arc"))
+    except subprocess.TimeoutExpired:
+        # NOT "no GPU". The probe ran out of time and knows nothing either way.
+        # The number comes from the variable, not from prose. A message that hardcodes the
+        # budget starts lying the first time somebody tunes it, and this message exists
+        # precisely to be trusted when nothing else can answer.
+        gpu_present.reason = ("video-controller enumeration exceeded %ss; presence unknown" % budget)
+        return None
+    except Exception as e:                      # noqa: BLE001 -- reported, not swallowed
+        gpu_present.reason = "%s: %s" % (type(e).__name__, e)
+        return None
+
+
+
+def _gpu(sink):
+    """Call gpu_present() and hand the caller the reason it could not answer, if any."""
+    v = gpu_present()
+    if v is None:
+        sink["why"] = getattr(gpu_present, "reason", None) or "unknown"
+    return v
 
 
 def main():
@@ -41,7 +77,10 @@ def main():
         "interactive_desktop": C.has_interactive_desktop(),
         "libs": libs,
         "monitors": C.enum_monitors(),
-        "gpu_present": gpu_present(),
+        # gpu_present is tri-state: True / False / None. When it is None the reason says why,
+        # so a reader can tell a probe that failed from a machine with no GPU.
+        "gpu_present": _gpu(report_reason := {}),
+        "gpu_present_unknown_because": report_reason.get("why"),
         "capabilities": {
             "screenshot": True,  # always (mss or pure-ctypes GDI fallback / mss elsewhere)
             "uia_elements": C.IS_WINDOWS and libs["uiautomation"],

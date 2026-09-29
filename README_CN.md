@@ -22,7 +22,7 @@
 由此直接派生三条决策，也是它在像素匹配类工具会碎的地方依然可靠的原因：
 
 1. **UIA 是真值，视觉是兜底。** 结构化元素带 confidence 1.0 和可直接触发的 `Invoke` pattern,**完全不靠坐标**即可点击。OCR 只在树缺文字处跑，与 UIA 重叠的 OCR 框被丢弃（UIA 优先）。这正是微软 UFO² 的混合检测路线。
-2. **DPI 感知先于一切。** 屏幕工具点偏的头号原因就是进程非 DPI-aware：Windows 会把截图虚拟化拉伸、UIA 矩形漂移。脚本在 `import` 时即设 Per-Monitor-V2，测试也证明了这点（2560×1600 @150% 屏必须截出 2560×1600 的 PNG）。
+2. **先确认 DPI 感知，再使用坐标。** Windows 的坐标虚拟化可能导致截图和点击位置对不上。脚本在 `import` 时尝试设置 Per-Monitor-V2，使用坐标前再查询实际生效的状态。未确认、不感知 DPI 或仅系统级感知时，截图和操作都会停止。离线测试验证这些判断；真实显示器的缩放效果需要单独开启桌面测试验证。
 3. **默认只读；点击是显式的、先 dry-run 的 opt-in。** 看屏幕安全，动屏幕不安全。登录 / 付款 / 验证码留给人工。
 
 📜 **[完整设计理念 → PHILOSOPHY.md](PHILOSOPHY.md)**（每条原则都给出"打补丁 vs 改根因"的对照与它产出的真实决策）。
@@ -52,7 +52,7 @@
 或手动克隆:
 
 ```bash
-git clone https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
+git clone --recurse-submodules https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
 ```
 
 推荐后端（可选,缺了也能降级运行）:
@@ -82,15 +82,19 @@ python skills/screen-vision/scripts/click.py --elements-json <path> --id 30 --co
 
 ## 示例输出
 
-`capture.py` 截计算器返回（节选）:
+每次捕获生成 `screen.png`、可选的 `annotated.png`、`elements.json` 和 `capture.json`。
+清单记录请求范围、实际范围、时间和文件路径；[合成示例](tests/fixtures/element.json)由生成器生成。
 
-```json
-{"id": 30, "type": "button", "label": "Seven", "automation_id": "num7Button",
- "source": "uia", "center": [337, 1047], "clickable": true, "patterns": ["Invoke"],
- "scale": 1.5, "origin": [0, 0]}
-```
+先将 `SCREEN_VISION_CONFIG` 指向私有伴生仓，创建其中的 `data/` 目录，并让 `gh` 能验证仓库为 PRIVATE。
+目标无效时不会自动截取全屏；只有显式指定 `--allow-full-screen-fallback` 才能扩大范围。
 
-`click.py --elements-json <path> --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}`，点两次后显示区读出 `77`,一个闭环、程序可验证的结果（见 `tests/run_gate.py`）。
+点击仍默认预览。实际动作要求捕获未超过 60 秒，并重新核对进程创建时间、窗口、UIA 运行时身份、
+元素属性和几何位置。坐标兜底也必须通过身份和命中检查。`recapture_required` 表示需重新检查并截图；
+`action_outcome_unknown` 表示动作结果不明，先查看应用状态，再决定是否重试。
+
+默认 `python -m pytest` 和 `python tests/run_gate.py --json` 不读桌面。
+后者只有加 `--interactive` 才会创建专用测试窗口、执行动作并清理自己创建的进程。
+未运行的桌面检查不代表真实能力已经验收。
 
 ## 局限
 

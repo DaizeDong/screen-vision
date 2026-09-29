@@ -34,9 +34,16 @@ annotation simply report as unavailable in `warnings[]`.
 
 ## DPI (the #1 failure mode)
 
-Per-Monitor-V2 is armed automatically on `import _common`. Proof it worked: a captured monitor's PNG
-dimensions equal its **physical** size (e.g. a 2560×1600 @150% panel yields a 2560×1600 PNG, not
-1707×1067). The eval gate asserts exactly this.
+Import attempts Per-Monitor-V2, then older setters if an API is unavailable or reports failure.
+The reported state comes from the effective thread context, or the process query on older Windows.
+Physical-coordinate operations require `per_monitor_v2` or `per_monitor`; `system`, `unaware`, and
+`unverified` stop capture and actions. Start a fresh process if another library fixed an incompatible
+DPI mode. The opt-in desktop tests compare capture dimensions with monitor geometry; offline tests
+prove return-value handling and refusal behavior, not actual monitor scaling.
+
+GDI capture checks every acquisition and copy result, restores the previous bitmap before reading,
+and requires all requested scanlines. Acquisition, copy, partial-read, and cleanup failures report
+`capture_failed`; they cannot produce a successful blank-frame result.
 
 ## UIA caveats
 
@@ -62,4 +69,7 @@ never committed). It is also heavy (10 to 35s, GPU), keep it off the fast path.
 - **macOS**, best-effort: capture via mss; structured elements (atomacos/AXUIElement) not yet wired
   (roadmap). Needs Screen-Recording + Accessibility permission per binary.
 - **Linux X11**, capture + RapidOCR work; AT-SPI (`pyatspi`) not yet wired.
+- Non-Windows monitor rectangles are read from MSS, including negative origins and multiple
+  monitors. Unavailable or invalid geometry stops capture. `scale_source=capture_pixel_units`
+  denotes capture-pixel units, not a measured native UI scaling factor.
 - **Linux Wayland**, silent capture is blocked by design; `probe.py` flags it and capture warns.

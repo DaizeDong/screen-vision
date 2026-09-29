@@ -32,8 +32,9 @@ are flaky:
    detection Microsoft's UFO² uses.
 2. **DPI awareness before anything else.** The single biggest reason screen tools mis-click is a
    non-DPI-aware process: Windows stretch-virtualizes the screenshot and UIA rectangles drift. The
-   scripts arm Per-Monitor-V2 *on import*, and the test suite proves it (a 2560×1600 @150% panel must
-   yield a 2560×1600 PNG).
+   scripts attempt Per-Monitor-V2 on import and query effective awareness before using coordinates.
+   Unverified, unaware, or system-aware contexts stop capture and actions. Offline tests exercise
+   these decisions; actual monitor scaling requires the separately enabled desktop tests.
 3. **Read-only by default; clicking is an explicit, dry-run-first opt-in.** Seeing the screen is safe;
    acting on it is not. Login / payment / 2FA stay with the human.
 
@@ -59,8 +60,9 @@ It is **for** desktop / native / Win32 / WinUI / Electron / game / remote-deskto
 It is **not for** web pages, those have a live DOM, so route to **Playwright**. It is also not an
 image generator/editor (that is `pixel-art` / image tools).
 
-It runs on **stdlib alone** (pure-ctypes screen grab + a stdlib PNG writer + ctypes click) and gets
+The Python core uses **stdlib alone** (pure-ctypes screen grab + a stdlib PNG writer + ctypes click) and gets
 sharper as you add `uiautomation` (elements), `winocr`/`rapidocr` (OCR), and `Pillow` (annotation).
+Capture also needs Git and the authenticated GitHub CLI to verify its private artifact destination.
 
 ## Install
 
@@ -71,7 +73,7 @@ sharper as you add `uiautomation` (elements), `winocr`/`rapidocr` (OCR), and `Pi
 Or clone manually:
 
 ```bash
-git clone https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
+git clone --recurse-submodules https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
 ```
 
 Recommended backends (optional, the tool degrades without them):
@@ -81,9 +83,6 @@ pip install uiautomation mss pillow            # elements + fast capture + annot
 pip install winocr                             # OCR (Windows-native), or:
 pip install rapidocr-onnxruntime               # OCR (cross-platform)
 ```
-
-(Maintainer setup: source lives in `CodesClaude/screen-vision`, deployed to
-`~/.claude/skills/screen-vision` via a PowerShell junction to `skills/screen-vision`.)
 
 ## Quick start
 
@@ -102,18 +101,31 @@ Trigger words: *take a screenshot and read the buttons, what UI elements are on 
 button and give coordinates, click the OK button in this desktop app, read the screen, GUI automation
 beyond the browser.*
 
-## Example output
+## Capture output and action validation
 
-`capture.py` on Calculator returns (abbreviated):
+Each run writes `screen.png`, optional `annotated.png`, `elements.json`, and `capture.json`.
+The manifest records requested and resolved scope, capture time and artifact paths. A generated
+[synthetic element example](tests/fixtures/element.json) shows the current identity fields.
 
-```json
-{"id": 30, "type": "button", "label": "Seven", "automation_id": "num7Button",
- "source": "uia", "center": [337, 1047], "clickable": true, "patterns": ["Invoke"],
- "scale": 1.5, "origin": [0, 0]}
-```
+Set `SCREEN_VISION_CONFIG` to a PRIVATE companion clone, create its `data/` directory, and authenticate
+`gh` with access to that repository. Capture verifies the destination before reading the screen.
+`--out-dir` selects a new directory within that data root; it cannot overwrite a prior capture.
 
-`click.py --elements-json <path> --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}` and the display reads `77`
-after two clicks, a closed-loop, program-verifiable result (see `tests/run_gate.py`).
+A narrow target that is invalid or missing returns an error without a screenshot. Scope expands
+only with `--allow-full-screen-fallback`, and that choice is recorded in the manifest.
+
+All action methods re-resolve the saved UIA runtime identity inside its owning window and verify
+process creation time, element properties and geometry. Captures expire for action after 60 seconds.
+Coordinate fallback also checks the current hit target. OCR-only or old records cannot authorize a
+click. `recapture_required` means inspect and capture again; `action_outcome_unknown` means inspect
+the application result before retrying. Dry-run remains the default and does not touch UIA.
+
+## Verification
+
+`python -m pytest` is safe offline by default. The four real desktop-read checks require the explicit
+`--interactive-desktop` option. `python tests/run_gate.py --json` runs offline checks; add
+`--interactive` only when ready to open and act on a dedicated synthetic window. The gate cleans
+only the child process it created. Skipped checks do not prove desktop capability.
 
 ## Limitations
 

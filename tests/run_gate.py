@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
-"""screen-vision eval gate — program-judgeable signals (no human in the loop).
+"""Pure checks by default. --interactive opens, tests and cleans one owned window.
 
-Mirrors ARCHITECTURE.md §4. Each check is PASS / FAIL / SKIP(reason). SKIP is not a
-failure (a backend simply absent on this host). Exit 0 unless something genuinely
-FAILS. self-evolve consumes this as its A/B regression signal.
-
-  A (fast): PNG sanity, DPI awareness, capture non-black + resolution match,
-            IoU fusion, golden UIA set (Calculator), closed-loop click.
-  B (text): synthetic-image OCR round-trip.
-
-Usage:  python tests/run_gate.py [--json]
+The interactive path never selects an existing application by its display name.
+Missing optional backends are reported as SKIP, not live capability evidence.
 """
 import argparse
 import json
@@ -50,16 +43,10 @@ def t_dpi():
     rec("dpi_awareness", "PASS" if lvl in ("per_monitor_v2", "per_monitor", "system") else "FAIL", lvl)
 
 
-def t_capture():
-    mons = C.enum_monitors()
-    m = mons[0]
-    l, t, r, b = m["rect"]
-    rgb, w, h, backend = C.capture_region(l, t, r - l, b - t)
-    blk = C.blackness(rgb, w, h)
-    size_ok = [w, h] == m["physical_size"]
-    rec("capture_resolution_match", "PASS" if size_ok else "FAIL",
-        "got %dx%d want %s (DPI-aware proof)" % (w, h, m["physical_size"]))
-    rec("capture_not_black", "PASS" if blk < 0.98 else "FAIL", "%.1f%% black (%s)" % (blk * 100, backend))
+def t_capture(target):
+    result = _run_capture(target, layers="")
+    rec("owned_window_capture", "PASS" if result.get("ok") else "FAIL",
+        "capture restricted to the owned fixture HWND")
 
 
 def t_iou():
@@ -79,48 +66,73 @@ def _run_capture(target, layers="uia"):
     return json.loads(out.stdout)
 
 
-def t_golden_uia():
+def t_golden_uia(target):
+    result = _run_capture(target, "uia")
+    if not result.get("ok"):
+        raise RuntimeError("owned-window capture failed: %s" % result.get("error"))
+    with open(result["elements_json"], encoding="utf-8") as handle:
+        elements = json.load(handle)
+    seven = [el for el in elements if el.get("name") == "Seven" and el["type"] == "button"]
+    ok = len(seven) == 1 and bool(seven[0].get("identity")) and "Invoke" in seven[0]["patterns"]
+    rec("golden_uia_fixture", "PASS" if ok else "FAIL", "owned synthetic digit button")
+    return (result["elements_json"], seven[0]["id"], target) if ok else None
+
+
+def t_closed_loop(golden):
+    if not golden:
+        return rec("closed_loop_click", "SKIP", "no verified fixture button")
+    elements_path, element_id, target = golden
+    for _ in range(2):
+        result = subprocess.run([sys.executable, os.path.join(SCRIPTS, "click.py"),
+                                 "--elements-json", elements_path, "--id", str(element_id),
+                                 "--confirm", "--method", "invoke"],
+                                capture_output=True, text=True, encoding="utf-8", timeout=20)
+        if result.returncode or not json.loads(result.stdout).get("acted"):
+            raise RuntimeError("verified fixture action failed")
+    result = _run_capture(target, "uia")
+    with open(result["elements_json"], encoding="utf-8") as handle:
+        elements = json.load(handle)
+    ok = any(el.get("name") == "77" for el in elements)
+    rec("closed_loop_click", "PASS" if ok else "FAIL", "owned fixture display equals 77")
+
+
+def run_interactive():
     if not (C.IS_WINDOWS and C._can_import("uiautomation")):
-        return rec("golden_uia_calculator", "SKIP", "uiautomation not installed"), None
+        return rec("interactive_fixture", "SKIP", "Windows and uiautomation are required")
+    import uuid
+    title = "Screen Vision Test " + uuid.uuid4().hex
+    process = None
     try:
-        subprocess.Popen(["calc.exe"])
-        time.sleep(3.0)
-    except Exception as e:
-        return rec("golden_uia_calculator", "SKIP", "cannot launch calc (%s)" % e), None
-    try:
-        d = _run_capture("window:Calculator", "uia")
-    except Exception as e:
-        return rec("golden_uia_calculator", "SKIP", "capture failed (%s)" % e), None
-    if d["counts"]["total"] < 10:
-        return rec("golden_uia_calculator", "SKIP",
-                   "only %d elements (Calculator may not be foreground)" % d["counts"]["total"]), None
-    els = json.load(open(d["elements_json"], encoding="utf-8"))
-    seven = [e for e in els if e.get("name") in ("Seven", "7") and e["type"] == "button"]
-    ok = bool(seven) and "Invoke" in seven[0]["patterns"] and seven[0]["clickable"]
-    rec("golden_uia_calculator", "PASS" if ok else "FAIL",
-        "%d elements; digit-7 invoke=%s" % (d["counts"]["total"], bool(seven)))
-    return None, (d["elements_json"], seven[0]["id"] if seven else None)
-
-
-def t_closed_loop(ej_and_id):
-    if not ej_and_id or ej_and_id[1] is None:
-        return rec("closed_loop_click", "SKIP", "no golden digit button")
-    ej, sid = ej_and_id
-    try:
-        for _ in range(2):
-            subprocess.run([sys.executable, os.path.join(SCRIPTS, "click.py"),
-                            "--elements-json", ej, "--id", str(sid), "--confirm"],
-                           capture_output=True, text=True, timeout=20)
-        time.sleep(0.5)
-        d = _run_capture("window:Calculator", "uia")
-        els = json.load(open(d["elements_json"], encoding="utf-8"))
-        disp = [e for e in els if e.get("automation_id") == "CalculatorResults"
-                or "Display is" in (e.get("name") or "")]
-        text = disp[0]["name"] if disp else ""
-        ok = "77" in text
-        rec("closed_loop_click", "PASS" if ok else "FAIL", "display=%r" % text)
-    except Exception as e:
-        rec("closed_loop_click", "SKIP", "error (%s)" % e)
+        process = subprocess.Popen([sys.executable, os.path.join(HERE, "desktop_fixture.py"),
+                                    "--title", title], stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL,
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError("owned fixture exited before its window was ready")
+            found = C.find_window_by_title(title)
+            identity = C.window_identity(found[0]) if found else None
+            if identity and identity['pid'] == process.pid:
+                target = 'hwnd:' + str(found[0])
+                t_capture(target)
+                t_closed_loop(t_golden_uia(target))
+                break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError("owned fixture did not become ready")
+    except Exception as exc:
+        rec("interactive_fixture", "FAIL", str(exc))
+    finally:
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+            except Exception as exc:
+                rec("owned_fixture_cleanup", "FAIL", str(exc))
 
 
 def t_ocr_synthetic():
@@ -159,29 +171,23 @@ def t_ocr_synthetic():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--interactive", action="store_true", help="Open and act only on an owned synthetic window.")
     a = ap.parse_args()
 
+    results.clear()
     t_png()
     t_dpi()
-    t_capture()
     t_iou()
-    skip, golden = t_golden_uia()
-    t_closed_loop(golden)
     t_ocr_synthetic()
-
-    # best-effort cleanup
-    if C.IS_WINDOWS:
-        try:
-            subprocess.run(["taskkill", "/F", "/IM", "CalculatorApp.exe"],
-                           capture_output=True)
-            subprocess.run(["taskkill", "/F", "/IM", "Calculator.exe"], capture_output=True)
-        except Exception:
-            pass
+    if a.interactive:
+        run_interactive()
+    else:
+        rec("interactive_fixture", "SKIP", "not requested; use --interactive for the owned-window test")
 
     n_pass = sum(1 for r in results if r["status"] == "PASS")
     n_fail = sum(1 for r in results if r["status"] == "FAIL")
     n_skip = sum(1 for r in results if r["status"] == "SKIP")
-    summary = {"pass": n_pass, "fail": n_fail, "skip": n_skip, "results": results}
+    summary = {"interactive": a.interactive, "pass": n_pass, "fail": n_fail, "skip": n_skip, "results": results}
     if a.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:

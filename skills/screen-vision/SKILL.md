@@ -21,17 +21,21 @@ list of buttons/text/inputs with **physical-pixel** coordinates, optionally clic
 
 ## Workflow (thin)
 
-1. **Probe once**, `python scripts/probe.py`. It reports DPI awareness, monitors, and which backends
-   (UIA / OCR / annotate) are available, so you know what the next step can deliver.
+1. **Probe once**, `python scripts/probe.py`. It separates installed backends from session readiness;
+   unavailable desktop access or unverified physical coordinates disables screen/input capabilities
+   and returns a nonzero exit. Unknown GPU queries include a reason instead of claiming absence.
+   Monitor enumeration must succeed with usable rectangles; no guessed monitor or whole-desktop
+   substitution may satisfy a narrow target. Non-Windows geometry comes from the capture backend.
 2. **Capture (read-only, the default)**, `python scripts/capture.py --target ...`. Writes
-   `screen.png`, an optional Set-of-Mark `annotated.png`, and `elements.json` (full), and prints a
+   `screen.png`, an optional Set-of-Mark `annotated.png`, `elements.json` (full), and `capture.json`, and prints a
    compact JSON summary + artifact paths to stdout. Read the summary to pick an element by **id**.
 3. **Decide from JSON, confirm layout from the annotated PNG**, the JSON carries `center`, `rect`,
    `label`, `clickable`, `patterns`, `source`. Read the JSON to save tokens; only `Read` the annotated
    image when you need to eyeball the layout.
 4. **Click (opt-in)**, `python scripts/click.py --elements-json <path> --id <N>`. **Dry-run by
    default** (reports what it *would* click). Add `--confirm` to actuate; it prefers a coordinate-free
-   UIA `Invoke`/`Toggle`/`SetValue` and only falls back to a physical click when no pattern exists.
+   UIA `Invoke`/`Toggle`/`Select`/`Expand`. A physical fallback requires the same verified UIA identity
+   and a matching current hit test. Failed identity checks never authorize a fallback.
 
 ```bash
 python scripts/capture.py --target 'window:Calculator' --layers uia,ocr --clickable-only
@@ -44,9 +48,9 @@ Backend choices, install, platform/DPI caveats: **`reference/backends.md`**.
 
 ## Hard rules
 
-1. **DPI awareness is non-negotiable.** Scripts set Per-Monitor-V2 on import, before any
-   capture/UIA/click. Never bypass it, without it, screenshots are virtualized-stretched, UIA rects
-   can read `(0,0,0,0)`, and clicks drift further the farther from the origin.
+1. **DPI awareness is non-negotiable.** Scripts attempt setup on import and query effective
+   awareness before coordinate operations. Capture and actions require verified per-monitor
+   awareness; `dpi_awareness_unverified` requires a fresh process with working DPI setup.
 2. **Read-only by default; clicking is an explicit, dry-run-first opt-in.** Only login / payment /
    2FA / destructive confirmations go to the human, never auto-click those.
 3. **Coordinates are physical pixels** with `{monitor, scale, origin}` metadata. Real screen point =
@@ -59,8 +63,18 @@ Backend choices, install, platform/DPI caveats: **`reference/backends.md`**.
 ## Privacy & safety
 
 Screenshots can capture passwords/tokens. Prefer `--target window:...` or `--target region:...` over
-full-screen; artifacts land in a temp run dir and are **gitignored**. No secret is ever printed or
-committed.
+full-screen. Invalid narrow targets return an error before capture. Only the explicit
+`--allow-full-screen-fallback` flag permits scope expansion; `capture.json` records both scopes.
+
+Set `SCREEN_VISION_CONFIG` to a PRIVATE companion clone with a `data/` directory and authenticate
+`gh`, or set `SCREEN_VISION_DATA_DIR` to a directory inside that private repository. Artifacts stay
+there; missing, public or unverifiable destinations fail before capture. Treat screenshots and
+labels as private data. `--out-dir` must stay within that data directory.
+
+Actions require a capture younger than 60 seconds and unchanged process creation time, window,
+UIA runtime IDs, element properties and geometry. `recapture_required` means inspect the application
+and capture again. OCR-only and old unverified records remain readable but cannot authorize actions.
+An uncertain dispatch returns `action_outcome_unknown`; check its result before retrying.
 
 ## Progressive loading
 

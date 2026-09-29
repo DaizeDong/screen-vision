@@ -5,10 +5,10 @@ Zero-dependency essentials so the skill *runs out of the box*: DPI awareness,
 a pure-ctypes GDI screen grab, a stdlib PNG writer, monitor enumeration, a
 ctypes mouse click, and capability probing. Heavy/optional backends (mss,
 uiautomation, winocr, rapidocr, Pillow, pyautogui) are detected lazily and the
-pipeline degrades — never hard-crashes — when they are missing.
+pipeline can use available backends when optional libraries are missing.
 
-Coordinates are always PHYSICAL pixels. DPI awareness MUST be set before any
-capture/UIA/click call, so callers import this module first and it self-arms.
+Coordinates are PHYSICAL pixels. Import attempts DPI setup; coordinate-sensitive
+operations require verified effective per-monitor awareness and fail otherwise.
 """
 import os
 import sys
@@ -35,27 +35,89 @@ for _stream in ("stdout", "stderr"):
 _DPI_STATE = {"set": False, "level": "none"}
 
 
-def set_dpi_awareness():
-    """Per-Monitor-V2 -> System -> legacy fallback chain. Safe to call repeatedly."""
-    if _DPI_STATE["set"] or not IS_WINDOWS:
-        _DPI_STATE["set"] = True
-        return _DPI_STATE["level"]
+def _win32_function(library, name, result_type, argument_types):
+    function = getattr(library, name)
+    function.restype = result_type
+    function.argtypes = argument_types
+    return function
+
+
+def _effective_dpi_awareness():
+    """Query the calling thread; use process awareness only on older Windows."""
+    user32 = ctypes.windll.user32
     try:
-        # PER_MONITOR_AWARE_V2 = -4 (Win10 1703+)
-        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
-        _DPI_STATE["level"] = "per_monitor_v2"
-    except Exception:
+        context_fn = _win32_function(user32, 'GetThreadDpiAwarenessContext', ctypes.c_void_p, [])
+    except AttributeError:
+        context_fn = None
+    if context_fn is not None:
         try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PER_MONITOR (Win8.1+)
-            _DPI_STATE["level"] = "per_monitor"
+            context = context_fn()
+            if not context:
+                return 'unverified'
+            query = _win32_function(user32, 'GetAwarenessFromDpiAwarenessContext',
+                                    ctypes.c_int, [ctypes.c_void_p])
+            awareness = query(context)
+            if awareness == 2:
+                try:
+                    equal = _win32_function(user32, 'AreDpiAwarenessContextsEqual', ctypes.c_int,
+                                            [ctypes.c_void_p, ctypes.c_void_p])
+                    if equal(context, ctypes.c_void_p(-4)):
+                        return 'per_monitor_v2'
+                except (AttributeError, OSError):
+                    pass  # The awareness query still proved per-monitor v1 or v2.
+            return {0: 'unaware', 1: 'system', 2: 'per_monitor'}.get(awareness, 'unverified')
         except Exception:
+            # A failed current-thread query cannot be replaced by a process default.
+            return 'unverified'
+    try:
+        query = _win32_function(ctypes.windll.shcore, 'GetProcessDpiAwareness', ctypes.c_long,
+                                [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)])
+    except (AttributeError, OSError):
+        try:
+            legacy = _win32_function(user32, 'IsProcessDPIAware', ctypes.c_int, [])
+            return 'system' if legacy() else 'unaware'
+        except (AttributeError, OSError):
+            return 'unverified'
+    try:
+        awareness = ctypes.c_int(-1)
+        if query(None, ctypes.byref(awareness)) == 0:
+            return {0: 'unaware', 1: 'system', 2: 'per_monitor'}.get(awareness.value, 'unverified')
+    except (AttributeError, OSError):
+        pass
+    return 'unverified'
+
+
+def set_dpi_awareness():
+    """Attempt setup once, but recheck effective thread awareness on every call."""
+    if not IS_WINDOWS:
+        return 'none'
+    if not _DPI_STATE['set']:
+        setters = [('user32', 'SetProcessDpiAwarenessContext', ctypes.c_int,
+                    [ctypes.c_void_p], (ctypes.c_void_p(-4),), 'bool'),
+                   ('shcore', 'SetProcessDpiAwareness', ctypes.c_long, [ctypes.c_int], (2,), 'hresult'),
+                   ('user32', 'SetProcessDPIAware', ctypes.c_int, [], (), 'bool')]
+        for library_name, name, result_type, argument_types, args, contract in setters:
             try:
-                ctypes.windll.user32.SetProcessDPIAware()    # System (Vista+)
-                _DPI_STATE["level"] = "system"
-            except Exception:
-                _DPI_STATE["level"] = "none"
-    _DPI_STATE["set"] = True
-    return _DPI_STATE["level"]
+                function = _win32_function(getattr(ctypes.windll, library_name), name,
+                                           result_type, argument_types)
+                result = function(*args)
+                succeeded = result == 0 if contract == 'hresult' else bool(result)
+                if succeeded:
+                    break
+            except (AttributeError, OSError):
+                continue
+        _DPI_STATE['set'] = True
+    _DPI_STATE['level'] = _effective_dpi_awareness()
+    return _DPI_STATE['level']
+
+
+def require_physical_coordinates():
+    """Refuse virtualized or unverified Windows coordinates, including system DPI."""
+    if IS_WINDOWS:
+        level = set_dpi_awareness()
+        if level not in ('per_monitor_v2', 'per_monitor'):
+            raise RuntimeError('DPI awareness is %s; verified per-monitor awareness is required '
+                               'for physical coordinates' % level)
 
 
 # Self-arm on import, the #1 documented failure mode is forgetting this.
@@ -104,19 +166,30 @@ def is_wayland():
 
 
 def has_interactive_desktop():
-    """False on Session-0 / locked / no-desktop (capture would silently fail)."""
+    """Check Windows input-desktop access; other platforms use display variables."""
+    has_interactive_desktop.reason = None
     if not IS_WINDOWS:
-        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+        available = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+        if not available:
+            has_interactive_desktop.reason = 'No display session is configured'
+        return available
     try:
         user32 = ctypes.windll.user32
-        hdesk = user32.OpenInputDesktop(0, False, 0x0100)  # DESKTOP_READOBJECTS
+        # Resolve the release function before acquiring a handle we own.
+        close_desktop = _win32_function(user32, 'CloseDesktop', ctypes.c_int, [ctypes.c_void_p])
+        open_desktop = _win32_function(user32, 'OpenInputDesktop', ctypes.c_void_p,
+                                       [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32])
+        hdesk = open_desktop(0, False, 0x0001)  # DESKTOP_READOBJECTS
         if not hdesk:
+            has_interactive_desktop.reason = 'OpenInputDesktop could not access the input desktop'
             return False
-        user32.CloseDesktop(hdesk)
-        # GetSystemMetrics(SM_REMOTESESSION=0x1000) -> RDP; still interactive but flag-worthy
+        if not close_desktop(hdesk):
+            has_interactive_desktop.reason = 'CloseDesktop failed; desktop probe did not complete'
+            return False
         return True
-    except Exception:
-        return True
+    except Exception as exc:
+        has_interactive_desktop.reason = '%s: %s' % (type(exc).__name__, exc)
+        return False
 
 
 # --------------------------------------------------------------------------- #
@@ -125,30 +198,78 @@ def has_interactive_desktop():
 def virtual_screen_rect():
     """(left, top, width, height) of the whole virtual desktop. Origin can be negative."""
     if not IS_WINDOWS:
-        return (0, 0, 1920, 1080)
-    gsm = ctypes.windll.user32.GetSystemMetrics
+        monitor = _backend_monitors()[0]
+        return tuple(monitor[key] for key in ('left', 'top', 'width', 'height'))
+    require_physical_coordinates()
+    gsm = _win32_function(ctypes.windll.user32, 'GetSystemMetrics', ctypes.c_int, [ctypes.c_int])
     SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN = 76, 77, 78, 79
-    return (gsm(SM_XVIRTUALSCREEN), gsm(SM_YVIRTUALSCREEN),
+    rect = (gsm(SM_XVIRTUALSCREEN), gsm(SM_YVIRTUALSCREEN),
             gsm(SM_CXVIRTUALSCREEN), gsm(SM_CYVIRTUALSCREEN))
+    if rect[2] <= 0 or rect[3] <= 0:
+        raise RuntimeError('Virtual desktop geometry has invalid dimensions')
+    return rect
+
+
+def validate_monitor_geometry(monitors):
+    """Reject missing or degenerate physical monitor rectangles before target selection."""
+    if not isinstance(monitors, list) or not monitors:
+        raise RuntimeError('Monitor geometry is unavailable')
+    indexes = set()
+    for monitor in monitors:
+        if not isinstance(monitor, dict):
+            raise RuntimeError('Invalid monitor geometry')
+        rect, index = monitor.get('rect'), monitor.get('index')
+        if (type(index) is not int or index < 1 or index in indexes
+                or not isinstance(rect, (list, tuple)) or len(rect) != 4
+                or any(type(value) is not int for value in rect)
+                or rect[2] <= rect[0] or rect[3] <= rect[1]):
+            raise RuntimeError('Invalid monitor geometry or index')
+        indexes.add(index)
+
+
+def _backend_monitors():
+    """Read MSS monitor metadata; never replace unavailable geometry with a guessed size."""
+    try:
+        import mss
+        with mss.mss() as backend:
+            monitors = [dict(monitor) for monitor in backend.monitors]
+        if len(monitors) < 2:
+            raise ValueError('no physical monitors')
+        for monitor in monitors:
+            if (any(type(monitor.get(key)) is not int for key in ('left', 'top', 'width', 'height'))
+                    or monitor['width'] <= 0 or monitor['height'] <= 0):
+                raise ValueError('invalid monitor dimensions')
+        return monitors
+    except Exception as exc:
+        raise RuntimeError('Capture-backend monitor geometry is unavailable') from exc
 
 
 def _monitor_scale(hmon):
     try:
         shcore = ctypes.windll.shcore
         dx, dy = ctypes.c_uint(), ctypes.c_uint()
-        # MDT_EFFECTIVE_DPI = 0
-        if shcore.GetDpiForMonitor(hmon, 0, ctypes.byref(dx), ctypes.byref(dy)) == 0:
+        query = _win32_function(shcore, 'GetDpiForMonitor', ctypes.c_long,
+                                [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_uint),
+                                 ctypes.POINTER(ctypes.c_uint)])
+        if query(hmon, 0, ctypes.byref(dx), ctypes.byref(dy)) == 0 and dx.value > 0 and dy.value > 0:
             return round(dx.value / 96.0, 4)
-    except Exception:
-        pass
-    return 1.0
+    except (AttributeError, OSError) as exc:
+        raise RuntimeError('Monitor DPI scale is unavailable') from exc
+    raise RuntimeError('Monitor DPI scale query failed')
 
 
 def enum_monitors():
     """List of {index, rect:[l,t,r,b], origin:[l,t], physical_size:[w,h], scale, primary}."""
     if not IS_WINDOWS:
-        return [{"index": 1, "rect": [0, 0, 1920, 1080], "origin": [0, 0],
-                 "physical_size": [1920, 1080], "scale": 1.0, "primary": True}]
+        out = []
+        for index, monitor in enumerate(_backend_monitors()[1:], 1):
+            l, t, w, h = (monitor[key] for key in ('left', 'top', 'width', 'height'))
+            out.append({'index': index, 'rect': [l, t, l+w, t+h], 'origin': [l, t],
+                        'physical_size': [w, h], 'scale': 1.0, 'scale_source': 'capture_pixel_units',
+                        'primary': l == 0 and t == 0})
+        validate_monitor_geometry(out)
+        return out
+    require_physical_coordinates()
     mons = []
 
     class RECT(ctypes.Structure):
@@ -156,17 +277,28 @@ def enum_monitors():
                     ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
     MONITORENUMPROC = ctypes.WINFUNCTYPE(
-        ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(RECT), ctypes.c_double)
+        ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(RECT), ctypes.c_ssize_t)
 
+    invalid_geometry = []
     def _cb(hmon, hdc, lprc, lparam):
+        if not hmon or not lprc:
+            invalid_geometry.append(True)
+            return 0
         r = lprc.contents
+        if r.right <= r.left or r.bottom <= r.top:
+            invalid_geometry.append(True)
+            return 0
         mons.append((hmon, (r.left, r.top, r.right, r.bottom)))
         return 1
 
     try:
-        ctypes.windll.user32.EnumDisplayMonitors(0, 0, MONITORENUMPROC(_cb), 0)
-    except Exception:
-        pass
+        enumerate_monitors = _win32_function(ctypes.windll.user32, 'EnumDisplayMonitors', ctypes.c_int,
+                                             [ctypes.c_void_p, ctypes.c_void_p, MONITORENUMPROC, ctypes.c_ssize_t])
+        succeeded = enumerate_monitors(None, None, MONITORENUMPROC(_cb), 0)
+    except (AttributeError, OSError) as exc:
+        raise RuntimeError('Monitor enumeration is unavailable') from exc
+    if not succeeded or not mons or invalid_geometry:
+        raise RuntimeError('Monitor enumeration failed or returned no valid monitors')
     out = []
     for i, (hmon, (l, t, r, b)) in enumerate(mons, 1):
         out.append({
@@ -174,10 +306,7 @@ def enum_monitors():
             "physical_size": [r - l, b - t], "scale": _monitor_scale(hmon),
             "primary": (l == 0 and t == 0),
         })
-    if not out:
-        l, t, w, h = virtual_screen_rect()
-        out = [{"index": 1, "rect": [l, t, l + w, t + h], "origin": [l, t],
-                "physical_size": [w, h], "scale": 1.0, "primary": True}]
+    validate_monitor_geometry(out)
     return out
 
 
@@ -186,15 +315,21 @@ def enum_monitors():
 # --------------------------------------------------------------------------- #
 def _capture_gdi(left, top, width, height):
     """Pure-ctypes BitBlt grab -> top-down RGB bytes. No third-party deps."""
+    require_physical_coordinates()
     user32 = ctypes.windll.user32
     gdi32 = ctypes.windll.gdi32
     SRCCOPY = 0x00CC0020
     CAPTUREBLT = 0x40000000
-    hdesk = user32.GetDC(0)
-    mem = gdi32.CreateCompatibleDC(hdesk)
-    bmp = gdi32.CreateCompatibleBitmap(hdesk, width, height)
-    gdi32.SelectObject(mem, bmp)
-    gdi32.BitBlt(mem, 0, 0, width, height, hdesk, left, top, SRCCOPY | CAPTUREBLT)
+    handle, integer, unsigned = ctypes.c_void_p, ctypes.c_int, ctypes.c_uint
+    get_dc = _win32_function(user32, 'GetDC', handle, [handle])
+    release_dc = _win32_function(user32, 'ReleaseDC', integer, [handle, handle])
+    create_dc = _win32_function(gdi32, 'CreateCompatibleDC', handle, [handle])
+    create_bitmap = _win32_function(gdi32, 'CreateCompatibleBitmap', handle, [handle, integer, integer])
+    select = _win32_function(gdi32, 'SelectObject', handle, [handle, handle])
+    blit = _win32_function(gdi32, 'BitBlt', integer,
+                           [handle, integer, integer, integer, integer, handle, integer, integer, unsigned])
+    delete_bitmap = _win32_function(gdi32, 'DeleteObject', integer, [handle])
+    delete_dc = _win32_function(gdi32, 'DeleteDC', integer, [handle])
 
     class BITMAPINFOHEADER(ctypes.Structure):
         _fields_ = [("biSize", ctypes.c_uint32), ("biWidth", ctypes.c_int32),
@@ -204,6 +339,9 @@ def _capture_gdi(left, top, width, height):
                     ("biYPelsPerMeter", ctypes.c_int32), ("biClrUsed", ctypes.c_uint32),
                     ("biClrImportant", ctypes.c_uint32)]
 
+    get_bits = _win32_function(gdi32, 'GetDIBits', integer,
+                               [handle, handle, unsigned, unsigned, ctypes.c_void_p,
+                                ctypes.POINTER(BITMAPINFOHEADER), unsigned])
     bmi = BITMAPINFOHEADER()
     bmi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
     bmi.biWidth = width
@@ -212,10 +350,62 @@ def _capture_gdi(left, top, width, height):
     bmi.biBitCount = 32
     bmi.biCompression = 0  # BI_RGB
     buf = ctypes.create_string_buffer(width * height * 4)
-    gdi32.GetDIBits(mem, bmp, 0, height, buf, ctypes.byref(bmi), 0)  # DIB_RGB_COLORS
-    gdi32.DeleteObject(bmp)
-    gdi32.DeleteDC(mem)
-    user32.ReleaseDC(0, hdesk)
+    hdesk = mem = bmp = previous = None
+    selected = False
+    invalid_objects = (None, 0, -1, ctypes.c_void_p(-1).value)
+    try:
+        hdesk = get_dc(None)
+        if not hdesk:
+            raise RuntimeError('GetDC failed')
+        mem = create_dc(hdesk)
+        if not mem:
+            raise RuntimeError('CreateCompatibleDC failed')
+        bmp = create_bitmap(hdesk, width, height)
+        if not bmp:
+            raise RuntimeError('CreateCompatibleBitmap failed')
+        previous = select(mem, bmp)
+        if previous in invalid_objects:
+            raise RuntimeError('SelectObject failed')
+        selected = True
+        if not blit(mem, 0, 0, width, height, hdesk, left, top, SRCCOPY | CAPTUREBLT):
+            raise RuntimeError('BitBlt failed')
+        # GetDIBits requires the bitmap to be deselected from every DC.
+        if select(mem, previous) in invalid_objects:
+            raise RuntimeError('SelectObject restore failed')
+        selected = False
+        scanlines = get_bits(hdesk, bmp, 0, height, buf, ctypes.byref(bmi), 0)
+        if scanlines != height:
+            raise RuntimeError('GetDIBits returned %s of %s scanlines' % (scanlines, height))
+    finally:
+        primary_error = sys.exc_info()[1]
+        errors = []
+
+        def release(name, function, *args, invalid=(None, 0)):
+            try:
+                if function(*args) in invalid:
+                    raise RuntimeError('returned failure')
+                return True
+            except Exception as exc:
+                errors.append('%s: %s' % (name, exc))
+                return False
+
+        if selected:
+            selected = not release('SelectObject restore', select, mem, previous, invalid=invalid_objects)
+        if selected and mem:
+            # A failed restore leaves the bitmap selected; dispose the DC first.
+            release('DeleteDC', delete_dc, mem)
+            mem = None
+        if bmp:
+            release('DeleteObject', delete_bitmap, bmp)
+        if mem:
+            release('DeleteDC', delete_dc, mem)
+        if hdesk:
+            release('ReleaseDC', release_dc, None, hdesk)
+        if errors:
+            detail = 'GDI cleanup failed: ' + '; '.join(errors)
+            if primary_error is not None:
+                detail = str(primary_error) + '; ' + detail
+            raise RuntimeError(detail) from primary_error
     bgra = buf.raw
     # BGRA -> RGB
     rgb = bytearray(width * height * 3)
@@ -227,6 +417,7 @@ def _capture_gdi(left, top, width, height):
 
 def capture_region(left, top, width, height):
     """Return (rgb_bytes, width, height, backend). Prefers mss, falls back to GDI."""
+    require_physical_coordinates()
     width = max(1, int(width))
     height = max(1, int(height))
     try:
@@ -314,22 +505,33 @@ def click_physical(x, y, button="left", double=False):
             return True
         except Exception:
             return False
+    try:
+        require_physical_coordinates()
+    except RuntimeError:
+        return False
     user32 = ctypes.windll.user32
-    user32.SetCursorPos(int(x), int(y))
+    from ctypes import wintypes as W
+    x, y = int(x), int(y)
+    if not user32.SetCursorPos(x, y):
+        return False
     flags = {"left": (0x0002, 0x0004), "right": (0x0008, 0x0010),
              "middle": (0x0020, 0x0040)}.get(button, (0x0002, 0x0004))
     down, up = flags
     times = 2 if double else 1
     for _ in range(times):
+        position = W.POINT()
+        if not user32.GetCursorPos(ctypes.byref(position)) or (position.x, position.y) != (x, y):
+            return False
         user32.mouse_event(down, 0, 0, 0, 0)
         user32.mouse_event(up, 0, 0, 0, 0)
     return True
 
 
 def find_window_by_title(substr):
-    """Return (hwnd, rect[l,t,r,b], title) of first top-level window whose title contains substr."""
+    """Return the unique visible title match; absent or ambiguous matches return None."""
     if not IS_WINDOWS:
         return None
+    require_physical_coordinates()
     user32 = ctypes.windll.user32
     substr_l = substr.lower()
     found = []
@@ -356,4 +558,56 @@ def find_window_by_title(substr):
         return 1
 
     user32.EnumWindows(EnumProc(_cb), 0)
-    return found[0] if found else None
+    return found[0] if len(found) == 1 else None
+
+
+def window_identity(hwnd):
+    """Read HWND, PID, process creation time and physical bounds; fail closed."""
+    if not IS_WINDOWS or not isinstance(hwnd, int) or hwnd <= 0:
+        return None
+    require_physical_coordinates()
+    from ctypes import wintypes as W
+    user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+    user32.IsWindow.argtypes = [W.HWND]
+    user32.IsWindowVisible.argtypes = [W.HWND]
+    user32.IsIconic.argtypes = [W.HWND]
+    user32.GetWindowThreadProcessId.argtypes = [W.HWND, ctypes.POINTER(W.DWORD)]
+    user32.GetWindowRect.argtypes = [W.HWND, ctypes.POINTER(W.RECT)]
+    kernel32.OpenProcess.argtypes = [W.DWORD, W.BOOL, W.DWORD]
+    kernel32.OpenProcess.restype = W.HANDLE
+    kernel32.GetProcessTimes.argtypes = [W.HANDLE] + [ctypes.POINTER(W.FILETIME)] * 4
+    kernel32.CloseHandle.argtypes = [W.HANDLE]
+    if not user32.IsWindow(hwnd) or not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+        return None
+    pid, rect = W.DWORD(), W.RECT()
+    if not user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid)) or not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+    if rect.right <= rect.left or rect.bottom <= rect.top:
+        return None
+    handle = kernel32.OpenProcess(0x1000, False, pid.value)
+    if not handle:
+        return None
+    try:
+        created, exited, kernel, user = (W.FILETIME() for _ in range(4))
+        if not kernel32.GetProcessTimes(handle, *[ctypes.byref(v) for v in (created, exited, kernel, user)]):
+            return None
+        return {'hwnd': hwnd, 'pid': pid.value,
+                'process_started': (created.dwHighDateTime << 32) | created.dwLowDateTime,
+                'rect': [rect.left, rect.top, rect.right, rect.bottom]}
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def runtime_id(control):
+    value = list(control.GetRuntimeId())
+    if not value or any(type(part) is not int for part in value):
+        raise ValueError('missing UIA runtime identity')
+    return value
+
+
+def control_identity(control, root):
+    window = window_identity(int(root.NativeWindowHandle))
+    if not window or control.ProcessId != window['pid']:
+        raise ValueError('window/process identity unavailable')
+    return {'runtime_id': runtime_id(control), 'window_runtime_id': runtime_id(root),
+            'window': window}

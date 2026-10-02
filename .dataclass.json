@@ -9,19 +9,25 @@
     "          NOT lifelike and does not need a generator; the risk it guards against is a person",
     "          reaching for a convenient REAL example, and there is no temptation to reach for a",
     "          real value that would look obviously wrong next to FAKE_CANARY_XYZ.)",
-    "DATA    = anything a REAL RUN produced. Never git-tracked. Lives in the private companion",
+    "DATA    = anything a REAL RUN produced. Versioned only in the private companion",
     "          config, resolved at runtime by tools/datadir.py. This repo ships only the schema.",
     "data_sealed = a path that HELD real data, was purged, and must stay dead.",
     "",
     "Enforced by tools/data_boundary.py in .githooks and in CI."
   ],
-  "_audited": "2026-07-31 RE-AUDIT (supersedes the 2026-07-13 sweep, which recorded an empty declaration for this repo). The earlier sweep asked only whether shipped code appends to a TRACKED file here. That question is too narrow: it clears every path that is gitignored, and .gitignore is advisory -- `git add -f` walks straight through it, which is the whole reason declarations exist. This pass asked instead whether shipped code or shipped docs can put REAL-RUN OUTPUT at a repo-relative path at all. ANSWER: YES, and it is among the most sensitive output in the fleet: a screenshot plus a full accessibility-tree dump of whatever was on the operator's actual screen. capture.py defaults out_dir to the OS temp dir, which is outside any repo, but --out-dir is a plain flag and `--out-dir .` run from here drops screen.png, annotated.png and elements.json into the repo root under exactly those names. This repo's .gitignore already lists all three. They are declared data_sealed rather than data on purpose: two of the three are PNG bitmaps, for which a .example is not a schema but a decoy file, and the third travels with them as one capture. data_sealed is checked identically to data (never tracked) and owes no schema, which is the honest mechanical fit. No directory-form declaration is possible here because the run directory name is a timestamp and this checker matches by prefix, not by glob.",
+  "_audited": "Capture output consists of screenshots, UIA/OCR observations and a capture manifest. Writes require an explicitly configured data directory inside a separately verified PRIVATE companion repository; public, unknown, own-worktree and escaping paths fail before capture. The sealed root filenames also prevent restoring former repository-relative output. The cropped/masked OCR input also stays inside that verified private output directory.",
   "data": [],
   "data_sealed": [
     "screen.png",
     "annotated.png",
-    "elements.json"
+    "elements.json",
+    "capture.json",
+    "ocr-input.png"
   ],
-  "fixture": [],
-  "_data_home": "~/.screen-vision-config/data/   (override with $SCREEN_VISION_DATA_DIR). If this skill ever needs to record real-run output, it goes THERE -- never back into this repo."
+  "fixture": [
+    "tests/fixtures/element.json",
+    "tests/test_review_v18.py",
+    "tests/test_review_v19.py"
+  ],
+  "_data_home": "SCREEN_VISION_DATA_DIR, or data/ under SCREEN_VISION_CONFIG; verified PRIVATE versioned companion required."
 }

@@ -15,7 +15,8 @@ regression, not a contribution.
 Every change must keep the eval gate green:
 
 ```bash
-python tests/run_gate.py        # 8 program-judgeable checks (SKIP is allowed, FAIL is not)
+python -m pytest               # offline suite; live desktop reads require explicit opt-in
+python tests/run_gate.py --json # offline gate; skipped capabilities remain unverified
 ```
 
 If you add a capability, add a program-judgeable check for it (golden assertion, closed-loop, or
@@ -24,7 +25,8 @@ synthetic fixture). "It looks right" is not acceptance, a passing check is.
 ## Conventions
 
 - **Coordinates are physical pixels** everywhere; carry `{monitor, scale, origin}` metadata.
-- **No secrets, ever**, nothing is printed or committed; runtime artifacts are gitignored.
+- Real runtime artifacts belong in a verified PRIVATE versioned companion. The public repository
+  contains only source and generated synthetic fixtures; gitignore is not a data boundary.
 - New backends are **optional and probed**, the stdlib floor must keep working with zero installs.
 - Keep `SKILL.md` thin; push detail into `skills/screen-vision/reference/*.md`.
 - Stdlib-only for the core (`_common.py`); third-party libs are import-guarded and degrade gracefully.

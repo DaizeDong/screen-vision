@@ -17,9 +17,8 @@ RULE FOR ANY EDIT (human or agent): keep this file importing ONLY from that
 whitelist (builtins need no import). Do NOT add ctypes / mss / os / sys / struct
 / zlib / numpy here, or the patch gate will reject the change.
 
-Two architecture requirements (ARCHITECTURE.md) are STUBBED below and must be
-implemented to satisfy tests/test_gaps_v0_2.py. Implement them in-place; the
-contracts are fully specified in each docstring.
+The pure helpers cover exact OCR regions, masked OCR pixels, and bounded
+black-frame retries. Their contracts are specified in each docstring.
 """
 
 
@@ -50,57 +49,52 @@ def _blackness(rgb, w, h, sample=20000):
 # Gap 1, region-targeted OCR pre-filter (ARCHITECTURE.md section 1.5)         #
 #   "OCR 铁律: 只对 UIA 缺文字的局部区域跑, 别全屏盲跑."                       #
 # --------------------------------------------------------------------------- #
+
 def compute_ocr_regions(region, uia_boxes, grid=8):
-    """Return the sub-rectangles of *region* NOT already covered by UIA.
+    """Subtract proven text rectangles from the capture, in absolute pixels.
 
-    Instead of OCR-ing the whole screenshot and discarding UIA-overlapping
-    results (the anti-pattern v0.1 collect_ocr uses), pre-compute the UIA-empty
-    sub-areas so OCR only runs where structured text is missing.
-
-    Parameters
-    ----------
-    region    : [l, t, r, b] absolute rectangle of the captured area.
-    uia_boxes : list of [l, t, r, b] absolute UIA element rectangles.
-    grid      : split *region* into grid x grid cells (default 8).
-
-    Returns
-    -------
-    list of [l, t, r, b] cell rectangles inside *region* whose center does NOT
-    fall inside any uia_box. Contract enforced by tests:
-      * no uia_boxes        -> cells tile the whole region; union area
-                               >= 0.9 * area(region).
-      * region fully covered -> [] (or union area <= 0.02 * area(region)).
-      * partial cover        -> non-empty; union area < area(region); AND no
-                               returned cell's center lies inside any uia_box.
-
-    Suggested implementation: split region into grid*grid equal cells; keep a
-    cell iff its center point is outside every uia_box. Pure stdlib only.
+    The returned disjoint rectangles cover every unexposed pixel and contain no
+    covered pixels. The retained grid argument is accepted for caller compatibility;
+    exact subtraction avoids clipping text at arbitrary grid-cell boundaries.
     """
     l, t, r, b = region
-    width = r - l
-    height = b - t
-    if width <= 0 or height <= 0:
+    if r <= l or b <= t:
         return []
-    grid = max(1, int(grid))
-    out = []
-    for gy in range(grid):
-        ct = t + int(round(gy * height / grid))
-        cb = b if gy == grid - 1 else t + int(round((gy + 1) * height / grid))
-        for gx in range(grid):
-            cl = l + int(round(gx * width / grid))
-            cr = r if gx == grid - 1 else l + int(round((gx + 1) * width / grid))
-            if cr <= cl or cb <= ct:
+    regions = [[l, t, r, b]]
+    for box in uia_boxes:
+        remaining = []
+        for left, top, right, bottom in regions:
+            il, it = max(left, box[0]), max(top, box[1])
+            ir, ib = min(right, box[2]), min(bottom, box[3])
+            if il >= ir or it >= ib:
+                remaining.append([left, top, right, bottom])
                 continue
-            cx = (cl + cr) / 2.0
-            cy = (ct + cb) / 2.0
-            covered = False
-            for bx in uia_boxes:
-                if bx[0] <= cx <= bx[2] and bx[1] <= cy <= bx[3]:
-                    covered = True
-                    break
-            if not covered:
-                out.append([cl, ct, cr, cb])
-    return out
+            candidates = ([left, top, right, it], [left, ib, right, bottom],
+                          [left, it, il, ib], [ir, it, right, ib])
+            remaining.extend(rect for rect in candidates if rect[2] > rect[0] and rect[3] > rect[1])
+        regions = remaining
+    return regions
+
+
+def ocr_pixels(rgb, width, height, origin, regions):
+    """Crop to the uncovered bounds and mask text-covered pixels in memory."""
+    if len(rgb) != width * height * 3 or not regions:
+        raise ValueError('OCR requires a complete RGB frame and uncovered regions')
+    ox, oy = origin
+    left = min(rect[0] for rect in regions)
+    top = min(rect[1] for rect in regions)
+    right = max(rect[2] for rect in regions)
+    bottom = max(rect[3] for rect in regions)
+    if not (ox <= left < right <= ox + width and oy <= top < bottom <= oy + height):
+        raise ValueError('OCR regions must stay inside the captured frame')
+    crop_width, crop_height = right - left, bottom - top
+    pixels = bytearray(b'\xff' * (crop_width * crop_height * 3))
+    for l, t, r, b in regions:
+        for row in range(t, b):
+            source = ((row - oy) * width + l - ox) * 3
+            target = ((row - top) * crop_width + l - left) * 3
+            pixels[target:target + (r-l)*3] = rgb[source:source + (r-l)*3]
+    return bytes(pixels), crop_width, crop_height, [left, top]
 
 
 # --------------------------------------------------------------------------- #

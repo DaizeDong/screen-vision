@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-"""Hermetic, program-judgeable signal tests for screen-vision.
+"""Deterministic signal tests plus explicitly marked live-desktop checks.
 
-pytest-discoverable mirror of the deterministic subset of ARCHITECTURE.md
-section 4 evaluation signals. Unlike tests/run_gate.py (which launches
-Calculator and performs real clicks for the full closed-loop proof), this
-module is HERMETIC: pure logic + read-only screenshot only — no GUI windows
-are opened, no synthetic clicks are issued, no network is touched. This makes
-it safe to run repeatedly inside an automated evaluation sandbox (e.g.
-self-evolve's A-tier program-adjudication provider) without side effects on the
-live desktop.
-
-Each check is a real assertion (not a placeholder). GUI/host-dependent parts
-degrade to pytest.skip rather than failing on non-Windows / headless hosts.
+Ordinary pytest runs only offline checks. --interactive-desktop opts into four
+read-only desktop tests; tests/run_gate.py --interactive separately exercises
+one owned synthetic window. Skips do not prove a live capability.
 """
 import os
 import struct
@@ -99,6 +91,7 @@ def test_enum_monitors_shape():
 # --------------------------------------------------------------------------- #
 # section 4.1, capture resolution match (read-only screenshot; DPI proof)     #
 # --------------------------------------------------------------------------- #
+@pytest.mark.interactive_desktop
 def test_capture_resolution_matches_monitor():
     if not C.IS_WINDOWS:
         pytest.skip("non-Windows host")
@@ -112,6 +105,7 @@ def test_capture_resolution_matches_monitor():
     assert len(rgb) == w * h * 3
 
 
+@pytest.mark.interactive_desktop
 def test_capture_region_not_all_black():
     if not C.IS_WINDOWS:
         pytest.skip("non-Windows host")
@@ -132,6 +126,7 @@ REQUIRED_ELEMENT_KEYS = {
 }
 
 
+@pytest.mark.interactive_desktop
 def test_capture_emits_schema_complete_elements():
     """Run capture.py read-only on a tiny region; every emitted element must
     carry the full ARCH section 3.2 schema, source in {uia,ocr,vision}, and a
@@ -159,6 +154,7 @@ def test_capture_emits_schema_complete_elements():
         assert l <= cx <= r and t <= cy <= b  # center inside rect
 
 
+@pytest.mark.interactive_desktop
 def test_capture_degrades_without_crash_on_empty_region():
     """Robustness (section 4.6): a 1x1 region must still return ok JSON, exit 0,
     never crash, even if no backends find elements."""
@@ -178,12 +174,7 @@ def test_capture_degrades_without_crash_on_empty_region():
 
 
 # --------------------------------------------------------------------------- #
-# section 4.6, malformed --target must degrade gracefully (never hard-crash)  #
-# Regression guard for the audit spec-gap: capture.py self-documents "degrades #
-# gracefully, never hard-crashes", but a short/non-numeric region/monitor/hwnd #
-# spec used to raise an uncaught ValueError traceback (exit != 0). It must now  #
-# fall back to full-screen with a warning and still emit ok JSON, exit 0.      #
-# --------------------------------------------------------------------------- #
+# Invalid narrow targets fail closed before any screenshot or output directory.
 @pytest.mark.parametrize("spec", [
     "region:1,2,3",        # too few segments
     "region:0,0,0,0",      # zero-size
@@ -192,7 +183,7 @@ def test_capture_degrades_without_crash_on_empty_region():
     "monitor:abc",         # non-numeric monitor index
     "hwnd:xyz",            # non-numeric window handle
 ])
-def test_capture_malformed_target_degrades_no_crash(spec):
+def test_capture_malformed_target_fails_closed(spec):
     import json
     import subprocess
 
@@ -201,9 +192,8 @@ def test_capture_malformed_target_degrades_no_crash(spec):
          "--target", spec, "--layers", "uia", "--summary-n", "0", "--annotate", "false"],
         capture_output=True, text=True, encoding="utf-8", timeout=60,
     )
-    assert out.returncode == 0, "hard-crashed on %r: %s" % (spec, out.stderr[-400:])
+    assert out.returncode == 2, out.stderr
     res = json.loads(out.stdout)
-    assert res.get("ok") is True, "non-ok result on %r: %s" % (spec, out.stdout[-300:])
-    warns = res.get("warnings", [])
-    assert any(("malformed" in w) or ("full screen" in w) or ("falling back" in w)
-               for w in warns), "expected a graceful-fallback warning, got %s" % warns
+    assert res["ok"] is False
+    assert res["error"] == "invalid_target"
+    assert "screenshot" not in res

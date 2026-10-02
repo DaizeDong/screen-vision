@@ -15,9 +15,9 @@
 set -e
 _ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 _REAL="$_ROOT/guards/hooks/pre-push"
-if [ ! -x "$_REAL" ] && [ ! -f "$_REAL" ]; then
-  echo "BLOCKED: guards/hooks/pre-push is missing, so nothing checked this push."
-  echo "  The guards submodule is not checked out. Fix it, do not bypass it:"
+if [ ! -f "$_REAL" ] || [ ! -s "$_REAL" ]; then
+  echo "BLOCKED: guards/hooks/pre-push is missing, non-regular, or empty, so nothing checked this push."
+  echo "  The guards submodule or delegated hook is incomplete. Fix it, do not bypass it:"
   echo "      git submodule update --init --recursive"
   echo "  An empty guards/ is an UNGUARDED repo, not a repo with nothing to check, and this"
   echo "  setting also shadows any wider hook configuration, so skipping here skips everything."

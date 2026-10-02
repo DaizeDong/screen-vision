@@ -1,0 +1,66 @@
+{
+  "id": 0,
+  "type": "button",
+  "label": "Acme action",
+  "name": "Acme action",
+  "automation_id": "acme-action",
+  "class_name": "Button",
+  "source": "uia",
+  "rect": [
+    10,
+    20,
+    50,
+    60
+  ],
+  "bbox": [
+    10,
+    20,
+    40,
+    40
+  ],
+  "center": [
+    30,
+    40
+  ],
+  "enabled": true,
+  "offscreen": false,
+  "clickable": true,
+  "patterns": [
+    "Invoke"
+  ],
+  "confidence": 1.0,
+  "monitor": 1,
+  "scale": 1.0,
+  "origin": [
+    0,
+    0
+  ],
+  "captured_at": 1000.0,
+  "capture_rect": [
+    0,
+    0,
+    200,
+    200
+  ],
+  "identity": {
+    "runtime_id": [
+      42,
+      7
+    ],
+    "window_runtime_id": [
+      42,
+      1
+    ],
+    "window": {
+      "hwnd": 101,
+      "pid": 202,
+      "process_started": 303,
+      "rect": [
+        0,
+        0,
+        200,
+        200
+      ]
+    }
+  }
+}

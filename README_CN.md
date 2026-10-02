@@ -21,8 +21,8 @@
 
 由此直接派生三条决策，也是它在像素匹配类工具会碎的地方依然可靠的原因：
 
-1. **UIA 是真值，视觉是兜底。** 结构化元素带 confidence 1.0 和可直接触发的 `Invoke` pattern,**完全不靠坐标**即可点击。OCR 只在树缺文字处跑，与 UIA 重叠的 OCR 框被丢弃（UIA 优先）。这正是微软 UFO² 的混合检测路线。
-2. **DPI 感知先于一切。** 屏幕工具点偏的头号原因就是进程非 DPI-aware：Windows 会把截图虚拟化拉伸、UIA 矩形漂移。脚本在 `import` 时即设 Per-Monitor-V2，测试也证明了这点（2560×1600 @150% 屏必须截出 2560×1600 的 PNG）。
+1. **UIA 是真值，视觉是兜底。** 结构化元素带 confidence 1.0 和可直接触发的 `Invoke` pattern,**完全不靠坐标**即可点击。OCR 使用经过裁剪和遮罩的图像，只处理 UIA Text 控件尚未提供文字的像素。窗口、面板的名称和 AutomationId 不算文字覆盖；重叠过滤也采用同一组文本矩形。这正是微软 UFO² 的混合检测路线。
+2. **先确认 DPI 感知，再使用坐标。** Windows 的坐标虚拟化可能导致截图和点击位置对不上。脚本在 `import` 时尝试设置 Per-Monitor-V2，使用坐标前再查询实际生效的状态。未确认、不感知 DPI 或仅系统级感知时，截图和操作都会停止。离线测试验证这些判断；真实显示器的缩放效果需要单独开启桌面测试验证。
 3. **默认只读；点击是显式的、先 dry-run 的 opt-in。** 看屏幕安全，动屏幕不安全。登录 / 付款 / 验证码留给人工。
 
 📜 **[完整设计理念 → PHILOSOPHY.md](PHILOSOPHY.md)**（每条原则都给出"打补丁 vs 改根因"的对照与它产出的真实决策）。
@@ -41,7 +41,7 @@
 
 **不适用于** 网页,网页有实时 DOM，请走 **Playwright**。也不是图像生成/编辑工具（那是 `pixel-art` / 图像工具）。
 
-它**仅靠标准库就能跑**（纯 ctypes 截屏 + 标准库 PNG 写出 + ctypes 点击），装上 `uiautomation`（元素）、`winocr`/`rapidocr`（OCR）、`Pillow`（标注）后更强。
+Windows 的 GDI 截图和 PNG 写出使用标准库。实际点击还需要 `uiautomation` 验证最新的控件身份；WinOCR 读取图像需要同时安装 winocr 和 Pillow，OCR 也可使用 RapidOCR；标注另需 Pillow。截图前还需要 Git 和已登录的 `gh` 验证私有输出仓。
 
 ## 安装
 
@@ -52,18 +52,17 @@
 或手动克隆:
 
 ```bash
-git clone https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
+git clone --recurse-submodules https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
 ```
 
 推荐后端（可选,缺了也能降级运行）:
 
 ```bash
 pip install uiautomation mss pillow            # 元素 + 快速截图 + 标注
-pip install winocr                             # OCR(Windows 原生)，或:
+pip install winocr pillow                      # OCR(Windows 原生，需要 Pillow)，或:
 pip install rapidocr-onnxruntime               # OCR(跨平台)
 ```
 
-（维护者部署：源在 `CodesClaude/screen-vision`，通过 PowerShell junction 把 `skills/screen-vision` 挂到 `~/.claude/skills/screen-vision`。）
 
 ## 快速开始
 
@@ -82,19 +81,23 @@ python skills/screen-vision/scripts/click.py --elements-json <path> --id 30 --co
 
 ## 示例输出
 
-`capture.py` 截计算器返回（节选）:
+每次捕获生成 `screen.png`、可选的 `annotated.png`、`elements.json` 和 `capture.json`。
+清单记录请求范围、实际范围、时间和文件路径；[合成示例](tests/fixtures/element.json)由生成器生成。
 
-```json
-{"id": 30, "type": "button", "label": "Seven", "automation_id": "num7Button",
- "source": "uia", "center": [337, 1047], "clickable": true, "patterns": ["Invoke"],
- "scale": 1.5, "origin": [0, 0]}
-```
+先创建私有伴生仓，用 `git clone https://github.com/OWNER/REPOSITORY.git` 克隆，再将 `SCREEN_VISION_CONFIG` 指向该目录，创建其中的 `data/`，并登录 `gh`。每次截图前会检查所有配置及实际生效的拉取、推送地址，并确认各仓库为 PRIVATE。目前只接受 GitHub HTTPS 的默认端口或 443；SSH 尚未验证，暂不支持。URL 重写、代理、TLS 信任覆盖和 Git 路由环境覆盖也会被拒绝。
+目标无效时不会自动截取全屏；只有显式指定 `--allow-full-screen-fallback` 才能扩大范围。
 
-`click.py --elements-json <path> --id 30 --confirm` → `{"acted": true, "method": "invoke:Invoke"}`，点两次后显示区读出 `77`,一个闭环、程序可验证的结果（见 `tests/run_gate.py`）。
+点击仍默认预览。实际动作要求捕获未超过 60 秒，并重新核对进程创建时间、窗口、UIA 运行时身份、
+元素属性和几何位置。坐标兜底也必须通过身份和命中检查。`recapture_required` 表示需重新检查并截图；
+`action_outcome_unknown` 表示动作结果不明，先查看应用状态，再决定是否重试。
+
+默认 `python -m pytest` 和 `python tests/run_gate.py --json` 不读桌面。
+后者只有加 `--interactive` 才会创建专用测试窗口、执行动作并清理自己创建的进程。
+未运行的桌面检查不代表真实能力已经验收。
 
 ## 局限
 
-- v0.1 **Windows 优先**。macOS/Linux 的截图 + OCR 可用，但其原生无障碍层（atomacos / AT-SPI）尚未接入（仅截图兜底）。Wayland 禁止静默截图。
+- 当前实现以 **Windows 为主**。macOS 使用原生 Screen Recording 权限预检和 MSS 显示器信息，不要求 X11 环境变量；Linux 仍需显示会话和 MSS。macOS/Linux 的真实截图、OCR 和权限兼容性尚需单独验收，原生无障碍层也未接入。Wayland 可能阻止静默截图。
 - UIA 盲区（未加 `--force-renderer-accessibility` 的 Chromium/Electron、Qt、Canvas、游戏）需 OCR 兜底；重型视觉后端（OmniParser / grounding VLM）是延后的、用户自取的 stub（AGPL 权重不随仓打包,见 `reference/backends.md`）。
 - 读取提权（UAC）窗口需同样以管理员身份运行 Python。
 

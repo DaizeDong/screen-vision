@@ -13,9 +13,10 @@ falls back to the image only where the tree is silent.
 - **Root cause:** the OS already knows every control's name, type, state, and exact rectangle via UI
   Automation. That data is model-free and pixel-exact. Ignoring it and re-deriving it from pixels is
   the actual mistake.
-- **Decision it produced:** UIA is L2a, the primary path (confidence 1.0). OCR runs **only** where the
-  tree lacks text, and any OCR box overlapping a UIA element (IoU > 0.10) is discarded, UIA wins the
-  fusion. The heavy icon/grounding vision layer is off by default.
+- **Decision it produced:** UIA is L2a, the primary path (confidence 1.0). Visible, named UIA Text
+  rectangles define the covered pixels: the OCR input masks them, and OCR boxes overlapping
+  them (IoU > 0.10) are discarded. Container names and AutomationIds do not suppress OCR of
+  their interior text. The heavy icon/grounding vision layer is off by default.
 
 ## P2, DPI awareness comes before any pixel exists
 
@@ -24,9 +25,10 @@ falls back to the image only where the tree is silent.
 - **Root cause:** a non-DPI-aware process is *lied to* by Windows, the screenshot is
   stretch-virtualized and UIA rectangles can read `(0,0,0,0)`. Every downstream coordinate is already
   corrupted before you touch it.
-- **Decision it produced:** `_common` arms Per-Monitor-V2 **on import**, before any capture/UIA/click,
-  with a System/legacy fallback chain. The eval gate asserts a monitor's PNG equals its *physical*
-  size, making "DPI awareness actually engaged" a tested invariant, not a hope.
+- **Decision it produced:** `_common` attempts DPI setup on import and queries effective awareness
+  before coordinates are used. Only verified per-monitor modes permit Windows capture or actions.
+  The offline gate checks that contract. Native scaling needs an explicit desktop run; an inert
+  return-value test cannot establish physical monitor behavior.
 
 ## P3, Never act on a coordinate you cannot verify
 
@@ -35,8 +37,9 @@ falls back to the image only where the tree is silent.
   wrong click with no signal.
 - **Decision it produced:** the model picks an element by **Set-of-Mark id**, and `click.py`
   re-resolves it, preferring a **coordinate-free** UIA `Invoke`/`Toggle`/`Select` pattern, with a
-  physical click only as last resort. The closed-loop test (click "7" twice → display reads "77")
-  makes correctness program-checkable.
+  physical click only as last resort. Both paths require fresh Windows UIA identity.
+  The opt-in closed-loop test invokes the owned fixture twice and verifies its display; offline
+  controls do not establish native input success.
 
 ## P4, Read-only by default; acting is an explicit, dry-run-first opt-in
 
@@ -54,5 +57,6 @@ falls back to the image only where the tree is silent.
 - **Root cause:** a confident-but-wrong empty result is worse than an error; it sends the agent down a
   false path.
 - **Decision it produced:** every gap is surfaced, missing libs, ~all-black/occluded capture, locked
-  desktop (`no_interactive_desktop`), Wayland, as `warnings[]`/`error` in the JSON. The whole tool
-  runs on stdlib so it *can* always produce *something*, and always says what it could not.
+  desktop (`no_interactive_desktop`), Wayland, as `warnings[]`/`error` in the JSON. The Windows
+  capture core uses stdlib, while private destination proof and verified actions have additional
+  prerequisites. Missing prerequisites stop the affected operation with a reported reason.

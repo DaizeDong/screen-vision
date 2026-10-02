@@ -9,6 +9,7 @@ Usage:  python probe.py
 """
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,22 +17,11 @@ import _common as C  # noqa: E402
 
 
 def gpu_present():
-    """True / False / None, where None means the probe could not answer -- not "no GPU".
+    """Report recognized GPU presence, explicit no-instances, or None with a reason.
 
-    THE TIMEOUT WAS 8 SECONDS AND THE COMMAND TAKES 13. Measured on this machine, three consecutive
-    runs of the wmic call: 12.52s, 14.05s, 13.20s, every one of them returning the GPU correctly. So
-    the probe timed out 100% of the time, the bare `except Exception: pass` swallowed it, and a
-    definite YES was reported as an indistinguishable "unknown" on every single run.
-
-    The slowness is not this command's fault and not fixable by picking a different one. Timed here:
-    wmic 16.8s, Get-CimInstance 13.5s, Get-PnpDevice 15.6s. Enumerating display devices is simply
-    slow on this box, the same shape as its event log being 50x slower than the others. So the cap
-    goes to 30s, comfortably past the measured 17s worst case, rather than to a number that merely
-    beats today's median.
-
-    The other half matters more than the number. "Timed out" and "no GPU found" used to share one
-    return value, so nothing downstream could tell a failed probe from a real answer. They are now
-    separate, and the reason is carried on the function so the report can say which.
+    Successful WMIC output must include a Name table with a recognized graphics
+    vendor, or the explicit no-instances result. Empty, unfamiliar and failed
+    output cannot establish absence. Enumeration has a 30-second budget.
     """
     gpu_present.reason = None
     try:
@@ -42,13 +32,18 @@ def gpu_present():
         budget = 30
         out = subprocess.run(["wmic", "path", "win32_VideoController", "get", "name"],
                              capture_output=True, text=True, timeout=budget)
-        txt = (out.stdout or "").lower()
-        return any(k in txt for k in ("nvidia", "amd", "radeon", "intel arc"))
+        if out.returncode != 0:
+            gpu_present.reason = 'video-controller enumeration exited %s; presence unknown' % out.returncode
+            return None
+        rows = [line.strip().lower() for line in (out.stdout or '').splitlines() if line.strip()]
+        if rows == ['no instance(s) available.']:
+            return False
+        if len(rows) >= 2 and rows[0] == 'name':
+            if any(re.search(r'\b(nvidia|amd|radeon|ati|intel)\b', row) for row in rows[1:]):
+                return True
+        gpu_present.reason = 'video-controller enumeration returned unrecognized or empty output; presence unknown'
+        return None
     except subprocess.TimeoutExpired:
-        # NOT "no GPU". The probe ran out of time and knows nothing either way.
-        # The number comes from the variable, not from prose. A message that hardcodes the
-        # budget starts lying the first time somebody tunes it, and this message exists
-        # precisely to be trusted when nothing else can answer.
         gpu_present.reason = ("video-controller enumeration exceeded %ss; presence unknown" % budget)
         return None
     except Exception as e:                      # noqa: BLE001 -- reported, not swallowed
@@ -67,44 +62,65 @@ def _gpu(sink):
 
 def main():
     libs = C.probe_libs()
+    dpi_awareness = C.set_dpi_awareness()
+    coordinate_error = None
+    desktop_ready = C.has_interactive_desktop() is True
+    desktop_error = None if desktop_ready else (
+        getattr(C.has_interactive_desktop, 'reason', None) or 'Interactive desktop access is unavailable')
+    monitors = []
+    try:
+        C.require_physical_coordinates()
+        if desktop_ready:
+            monitors = C.enum_monitors()
+            C.validate_monitor_geometry(monitors)
+    except (RuntimeError, OSError) as exc:
+        monitors = []
+        coordinate_error = str(exc)
+    session_ready = coordinate_error is None and desktop_ready
     report = {
-        "ok": True,
+        "ok": session_ready,
         "platform": C.platform.system(),
         "python": sys.version.split()[0],
-        "dpi_awareness": C.set_dpi_awareness(),
+        "dpi_awareness": dpi_awareness,
+        "coordinate_error": coordinate_error,
+        "desktop_error": desktop_error,
         "is_wayland": C.is_wayland(),
         "admin": C.is_admin(),
-        "interactive_desktop": C.has_interactive_desktop(),
+        "interactive_desktop": desktop_ready,
         "libs": libs,
-        "monitors": C.enum_monitors(),
+        "monitors": monitors,
         # gpu_present is tri-state: True / False / None. When it is None the reason says why,
         # so a reader can tell a probe that failed from a machine with no GPU.
         "gpu_present": _gpu(report_reason := {}),
         "gpu_present_unknown_because": report_reason.get("why"),
         "capabilities": {
-            "screenshot": True,  # always (mss or pure-ctypes GDI fallback / mss elsewhere)
-            "uia_elements": C.IS_WINDOWS and libs["uiautomation"],
-            "ocr": libs["winocr"] or libs["rapidocr"],
+            "screenshot": session_ready and (C.IS_WINDOWS or libs["mss"]),
+            "uia_elements": session_ready and C.IS_WINDOWS and libs["uiautomation"],
+            "ocr": (C.IS_WINDOWS and libs["winocr"] and libs["pillow"]) or libs["rapidocr"],
             "annotate": libs["pillow"],
-            "click_physical": True,
-            "click_invoke": C.IS_WINDOWS and libs["uiautomation"],
+            "click_physical": session_ready and C.IS_WINDOWS and libs["uiautomation"],
+            "click_invoke": session_ready and C.IS_WINDOWS and libs["uiautomation"],
             "vision_backend": False,  # optional, user-supplied (see backends.md)
         },
         "notes": [],
     }
-    if not report["capabilities"]["uia_elements"]:
+    if coordinate_error:
+        report['notes'].append(coordinate_error)
+    if desktop_error:
+        report['notes'].append(desktop_error)
+    if C.IS_WINDOWS and not libs["uiautomation"]:
         report["notes"].append("No UIA: install 'uiautomation' for structured element reading "
                                "(otherwise only OCR/vision text is available).")
     if not report["capabilities"]["ocr"]:
         report["notes"].append("No OCR: install 'rapidocr-onnxruntime' (cross-platform) "
-                               "or 'winocr' (Windows) to read text not exposed by UIA.")
+                               "or 'winocr' plus 'Pillow' (Windows) to read text not exposed by UIA.")
     if not libs["mss"]:
         report["notes"].append("'mss' not installed: using pure-ctypes GDI capture "
                                "(works on Windows; install mss for speed / cross-platform).")
     if report["is_wayland"]:
         report["notes"].append("Wayland session: silent screen capture is blocked; expect failures.")
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0
+    return 0 if session_ready else 1
 
 
 if __name__ == "__main__":

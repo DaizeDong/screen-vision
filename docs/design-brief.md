@@ -1,9 +1,8 @@
 # Design Brief, screen-vision
 
-> Step-0 research was completed during planning (6 parallel recon tracks: screenshot-apis,
-> ui-element-tree, ocr-vision, agent-computer-use, existing-tools-antipatterns, packaging-as-skill).
-> The full synthesized architecture is the authoritative source; this brief is the auditable summary.
-> Full architecture: `CodesResearch/_skill-builds/09-screen-vision/ARCHITECTURE.md`.
+> This brief documents the shipped capture, discovery and verification contracts.
+> See [PHILOSOPHY.md](../PHILOSOPHY.md) for the design principles and
+> [the schema reference](../skills/screen-vision/reference/schema.md) for output fields.
 
 ## Best references (match-or-beat)
 - **Microsoft UFO² / UI Automation**, hybrid control detection (structured UIA + vision fallback);
@@ -25,11 +24,19 @@
 - Bundling OmniParser `icon_detect` weights (AGPL-3.0 copyleft) → user-supplied, off by default.
 - Returning an empty list on failure (reads as "nothing on screen") → degrade loud with warnings.
 
-## Proof bar (how we will show it is tested-real)
-Program-judgeable (`tests/run_gate.py`, no human): PNG validity; DPI proof (monitor PNG == physical
-size); capture non-black + resolution match; IoU fusion math; **golden UIA set** (Calculator: digit-7
-button exists, type=button, Invoke pattern, clickable); **closed-loop click** (invoke "7"×2 → display
-reads "77"); synthetic-image OCR round-trip. Current status: 8/8 PASS on the build host.
+## Verification gate and evidence boundary
+`tests/run_gate.py` defaults to offline checks: PNG writer validity, the effective Windows DPI
+contract, IoU math, and synthetic-image OCR. Missing optional OCR dependencies produce SKIP.
+
+`--interactive` explicitly enables a newly created, uniquely named owned window. Its capture
+check verifies HWND/process identity before and after capture, retained scope, persisted PNG
+dimensions, and non-black pixels. Every golden and post-action receipt must retain the same
+HWND, PID, process creation time and bounds. The gate checks the display after each invocation
+and stops before any further action when a receipt, element identity or command fails.
+
+The earlier Calculator/8-of-8 description was historical; it is not a current receipt for this
+gate. Offline controls establish decision behavior. Native DPI scaling, capture, UIA and input
+require a separately authorized desktop run; no current native pass is claimed here.
 
 ## Scope & focus (one job, <=3 modules)
 One job: capture the screen and read/optionally-act on its UI elements, **beyond the browser**.

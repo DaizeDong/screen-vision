@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""screen-vision eval gate — program-judgeable signals (no human in the loop).
+"""Pure checks by default. --interactive opens, tests and cleans one owned window.
 
-Mirrors ARCHITECTURE.md §4. Each check is PASS / FAIL / SKIP(reason). SKIP is not a
-failure (a backend simply absent on this host). Exit 0 unless something genuinely
-FAILS. self-evolve consumes this as its A/B regression signal.
-
-  A (fast): PNG sanity, DPI awareness, capture non-black + resolution match,
-            IoU fusion, golden UIA set (Calculator), closed-loop click.
-  B (text): synthetic-image OCR round-trip.
-
-Usage:  python tests/run_gate.py [--json]
+The interactive path never selects an existing application by its display name.
+Missing optional backends are reported as SKIP, not live capability evidence.
 """
 import argparse
+import copy
 import json
 import os
 import subprocess
+import struct
+import zlib
 import sys
 import time
 
@@ -44,22 +40,99 @@ def t_png():
 
 
 def t_dpi():
-    lvl = C.set_dpi_awareness()
     if not C.IS_WINDOWS:
         return rec("dpi_awareness", "SKIP", "non-Windows")
-    rec("dpi_awareness", "PASS" if lvl in ("per_monitor_v2", "per_monitor", "system") else "FAIL", lvl)
+    try:
+        C.require_physical_coordinates()
+    except (RuntimeError, OSError) as exc:
+        rec("dpi_awareness", "FAIL", str(exc))
+    else:
+        rec("dpi_awareness", "PASS", C._DPI_STATE["level"])
 
 
-def t_capture():
-    mons = C.enum_monitors()
-    m = mons[0]
-    l, t, r, b = m["rect"]
-    rgb, w, h, backend = C.capture_region(l, t, r - l, b - t)
-    blk = C.blackness(rgb, w, h)
-    size_ok = [w, h] == m["physical_size"]
-    rec("capture_resolution_match", "PASS" if size_ok else "FAIL",
-        "got %dx%d want %s (DPI-aware proof)" % (w, h, m["physical_size"]))
-    rec("capture_not_black", "PASS" if blk < 0.98 else "FAIL", "%.1f%% black (%s)" % (blk * 100, backend))
+def _read_capture_png(path, expected_size):
+    """Validate the stdlib writer's RGB PNG and inspect the persisted pixels."""
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("capture artifact is not a PNG")
+    offset, compressed, header, ended = 8, bytearray(), None, False
+    while offset < len(data):
+        length = struct.unpack(">I", data[offset:offset+4])[0]
+        kind = data[offset+4:offset+8]
+        payload = data[offset+8:offset+8+length]
+        crc = struct.unpack(">I", data[offset+8+length:offset+12+length])[0]
+        if zlib.crc32(kind + payload) & 0xffffffff != crc:
+            raise ValueError("capture PNG checksum mismatch")
+        if kind == b"IHDR":
+            header = struct.unpack(">IIBBBBB", payload)
+        elif kind == b"IDAT":
+            compressed.extend(payload)
+        elif kind == b"IEND":
+            ended = True
+        offset += length + 12
+    if not ended or header != (*expected_size, 8, 2, 0, 0, 0):
+        raise ValueError("capture PNG dimensions or RGB format differ from the owned window")
+    width, height = expected_size
+    raw = zlib.decompress(compressed)
+    stride = width * 3 + 1
+    if len(raw) != height * stride or any(raw[row*stride] != 0 for row in range(height)):
+        raise ValueError("capture PNG pixel layout is invalid")
+    rgb = b"".join(raw[row*stride+1:(row+1)*stride] for row in range(height))
+    return C.blackness(rgb, width, height)
+
+
+def _owned_identity(target, expected_identity):
+    if not target.startswith("hwnd:"):
+        raise ValueError("owned capture requires an explicit HWND")
+    hwnd = int(target.split(":", 1)[1])
+    identity = C.window_identity(hwnd)
+    if (not isinstance(identity, dict) or identity.get("hwnd") != hwnd
+            or any(type(identity.get(key)) is not int or identity[key] <= 0
+                   for key in ("hwnd", "pid", "process_started"))
+            or (expected_identity is not None and identity != expected_identity)):
+        raise ValueError("owned window identity changed or is unavailable")
+    rect = identity.get("rect")
+    if (not isinstance(rect, list) or len(rect) != 4
+            or any(type(value) is not int for value in rect)
+            or rect[2] <= rect[0] or rect[3] <= rect[1]):
+        raise ValueError("owned window bounds are unavailable")
+    return copy.deepcopy(identity)
+
+
+def _owned_capture(target, expected_identity, layers):
+    before = _owned_identity(target, expected_identity)
+    result = _run_capture(target, layers=layers)
+    metadata = result.get("capture", {})
+    resolved = metadata.get("resolved_target", {})
+    if (result.get("ok") is not True or metadata.get("requested_target") != target
+            or metadata.get("fallback_used") is not False
+            or resolved.get("kind") != "window" or resolved.get("hwnd") != before["hwnd"]
+            or resolved.get("window_identity") != before or resolved.get("rect") != before["rect"]):
+        raise ValueError("capture did not retain the owned window identity and scope")
+    l, t, r, b = before["rect"]
+    if result.get("monitor", {}).get("physical_size") != [r-l, b-t]:
+        raise ValueError("capture dimensions differ from the owned window")
+    _owned_identity(target, before)
+    return result, before
+
+
+def t_capture(target, expected_identity=None):
+    try:
+        result, before = _owned_capture(target, expected_identity, "")
+        l, t, r, b = before["rect"]
+        size = (r-l, b-t)
+        blackness = _read_capture_png(result["screenshot"], size)
+        if blackness > 0.98:
+            raise ValueError("owned window capture is near-black")
+        _owned_identity(target, before)
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, struct.error, zlib.error) as exc:
+        rec("owned_window_capture", "FAIL", str(exc))
+        return False
+    else:
+        rec("owned_window_capture", "PASS",
+            "owned HWND and process verified; PNG matches %dx%d and is not near-black" % size)
+        return True
 
 
 def t_iou():
@@ -76,56 +149,120 @@ def _run_capture(target, layers="uia"):
                           "--target", target, "--layers", layers, "--summary-n", "0",
                           "--annotate", "false"],
                          capture_output=True, text=True, encoding="utf-8", timeout=60)
-    return json.loads(out.stdout)
+    if out.returncode:
+        raise RuntimeError("owned-window capture command failed")
+    result = json.loads(out.stdout)
+    if not isinstance(result, dict):
+        raise ValueError("capture receipt must be an object")
+    return result
 
 
-def t_golden_uia():
+def _read_elements(path):
+    with open(path, encoding="utf-8") as handle:
+        elements = json.load(handle)
+    if not isinstance(elements, list) or any(not isinstance(el, dict) for el in elements):
+        raise ValueError("owned capture elements must be a list of objects")
+    return elements
+
+
+def _require_owned_element(element, expected_identity):
+    identity = element.get("identity")
+    if (element.get("source") != "uia" or not isinstance(identity, dict)
+            or identity.get("window") != expected_identity
+            or any(not isinstance(identity.get(key), list) or not identity[key]
+                   or any(type(part) is not int for part in identity[key])
+                   for key in ("runtime_id", "window_runtime_id"))):
+        raise ValueError("element identity does not belong to the owned window")
+
+
+def t_golden_uia(target, expected_identity):
+    result, window = _owned_capture(target, expected_identity, "uia")
+    elements = _read_elements(result["elements_json"])
+    seven = [el for el in elements if el.get("name") == "Seven" and el["type"] == "button"]
+    if (len(seven) != 1 or "Invoke" not in seven[0].get("patterns", [])
+            or type(seven[0].get("id")) is not int or seven[0]["id"] < 0):
+        raise ValueError("owned fixture digit button is missing or ambiguous")
+    _require_owned_element(seven[0], window)
+    _owned_identity(target, window)
+    rec("golden_uia_fixture", "PASS", "owned synthetic digit button")
+    return {"elements_path": result["elements_json"], "element": copy.deepcopy(seven[0]),
+            "target": target, "window": window}
+
+
+def t_closed_loop(golden):
+    if not golden:
+        raise ValueError("no verified fixture button")
+    elements_path, target, window = golden["elements_path"], golden["target"], golden["window"]
+    saved = golden["element"]
+    for expected_text in ("7", "77"):
+        _owned_identity(target, window)
+        selected = [el for el in _read_elements(elements_path) if el.get("id") == saved["id"]]
+        if len(selected) != 1 or selected[0] != saved:
+            raise ValueError("golden element changed before action")
+        _require_owned_element(selected[0], window)
+        _owned_identity(target, window)
+        result = subprocess.run([sys.executable, os.path.join(SCRIPTS, "click.py"),
+                                 "--elements-json", elements_path, "--id", str(saved["id"]),
+                                 "--confirm", "--method", "invoke"],
+                                capture_output=True, text=True, encoding="utf-8", timeout=20)
+        if result.returncode or json.loads(result.stdout).get("acted") is not True:
+            raise RuntimeError("verified fixture action failed")
+        result, _ = _owned_capture(target, window, "uia")
+        display = [el for el in _read_elements(result["elements_json"])
+                   if el.get("name") == expected_text]
+        if len(display) != 1:
+            raise ValueError("owned fixture display does not equal " + expected_text)
+        _require_owned_element(display[0], window)
+        _owned_identity(target, window)
+    rec("closed_loop_click", "PASS", "owned fixture display equals 77")
+
+
+def run_interactive():
     if not (C.IS_WINDOWS and C._can_import("uiautomation")):
-        return rec("golden_uia_calculator", "SKIP", "uiautomation not installed"), None
+        return rec("interactive_fixture", "SKIP", "Windows and uiautomation are required")
+    import uuid
+    title = "Screen Vision Test " + uuid.uuid4().hex
+    process = None
     try:
-        subprocess.Popen(["calc.exe"])
-        time.sleep(3.0)
-    except Exception as e:
-        return rec("golden_uia_calculator", "SKIP", "cannot launch calc (%s)" % e), None
-    try:
-        d = _run_capture("window:Calculator", "uia")
-    except Exception as e:
-        return rec("golden_uia_calculator", "SKIP", "capture failed (%s)" % e), None
-    if d["counts"]["total"] < 10:
-        return rec("golden_uia_calculator", "SKIP",
-                   "only %d elements (Calculator may not be foreground)" % d["counts"]["total"]), None
-    els = json.load(open(d["elements_json"], encoding="utf-8"))
-    seven = [e for e in els if e.get("name") in ("Seven", "7") and e["type"] == "button"]
-    ok = bool(seven) and "Invoke" in seven[0]["patterns"] and seven[0]["clickable"]
-    rec("golden_uia_calculator", "PASS" if ok else "FAIL",
-        "%d elements; digit-7 invoke=%s" % (d["counts"]["total"], bool(seven)))
-    return None, (d["elements_json"], seven[0]["id"] if seven else None)
-
-
-def t_closed_loop(ej_and_id):
-    if not ej_and_id or ej_and_id[1] is None:
-        return rec("closed_loop_click", "SKIP", "no golden digit button")
-    ej, sid = ej_and_id
-    try:
-        for _ in range(2):
-            subprocess.run([sys.executable, os.path.join(SCRIPTS, "click.py"),
-                            "--elements-json", ej, "--id", str(sid), "--confirm"],
-                           capture_output=True, text=True, timeout=20)
-        time.sleep(0.5)
-        d = _run_capture("window:Calculator", "uia")
-        els = json.load(open(d["elements_json"], encoding="utf-8"))
-        disp = [e for e in els if e.get("automation_id") == "CalculatorResults"
-                or "Display is" in (e.get("name") or "")]
-        text = disp[0]["name"] if disp else ""
-        ok = "77" in text
-        rec("closed_loop_click", "PASS" if ok else "FAIL", "display=%r" % text)
-    except Exception as e:
-        rec("closed_loop_click", "SKIP", "error (%s)" % e)
+        process = subprocess.Popen([sys.executable, os.path.join(HERE, "desktop_fixture.py"),
+                                    "--title", title], stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL,
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError("owned fixture exited before its window was ready")
+            found = C.find_window_by_title(title)
+            identity = C.window_identity(found[0]) if found else None
+            if identity and identity['pid'] == process.pid:
+                if process.poll() is not None:
+                    raise RuntimeError("owned fixture exited during window discovery")
+                target = 'hwnd:' + str(found[0])
+                identity = copy.deepcopy(identity)
+                if t_capture(target, identity) is not True:
+                    raise RuntimeError("owned fixture capture verification failed")
+                t_closed_loop(t_golden_uia(target, identity))
+                break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError("owned fixture did not become ready")
+    except Exception as exc:
+        rec("interactive_fixture", "FAIL", str(exc))
+    finally:
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+            except Exception as exc:
+                rec("owned_fixture_cleanup", "FAIL", str(exc))
 
 
 def t_ocr_synthetic():
-    if not (C._can_import("winocr") or C._can_import("rapidocr_onnxruntime")):
-        return rec("ocr_synthetic", "SKIP", "no OCR engine installed")
+    if not ((C.IS_WINDOWS and C._can_import("winocr")) or C._can_import("rapidocr_onnxruntime")):
+        return rec("ocr_synthetic", "SKIP", "no supported OCR engine installed")
     try:
         from PIL import Image, ImageDraw  # type: ignore
     except Exception:
@@ -152,36 +289,30 @@ def t_ocr_synthetic():
     els = cap.collect_ocr(p, "auto", [0, 0], [0, 0, 520, 120], [], warnings)
     joined = "".join(e["label"] for e in els).lower().replace(" ", "")
     ok = "opensettings" in joined or "settings" in joined
-    rec("ocr_synthetic", "PASS" if ok else ("SKIP" if not els else "FAIL"),
+    rec("ocr_synthetic", "PASS" if ok else "FAIL",
         "recovered=%r warn=%s" % (joined[:40], warnings[:1]))
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--interactive", action="store_true", help="Open and act only on an owned synthetic window.")
     a = ap.parse_args()
 
+    results.clear()
     t_png()
     t_dpi()
-    t_capture()
     t_iou()
-    skip, golden = t_golden_uia()
-    t_closed_loop(golden)
     t_ocr_synthetic()
-
-    # best-effort cleanup
-    if C.IS_WINDOWS:
-        try:
-            subprocess.run(["taskkill", "/F", "/IM", "CalculatorApp.exe"],
-                           capture_output=True)
-            subprocess.run(["taskkill", "/F", "/IM", "Calculator.exe"], capture_output=True)
-        except Exception:
-            pass
+    if a.interactive:
+        run_interactive()
+    else:
+        rec("interactive_fixture", "SKIP", "not requested; use --interactive for the owned-window test")
 
     n_pass = sum(1 for r in results if r["status"] == "PASS")
     n_fail = sum(1 for r in results if r["status"] == "FAIL")
     n_skip = sum(1 for r in results if r["status"] == "SKIP")
-    summary = {"pass": n_pass, "fail": n_fail, "skip": n_skip, "results": results}
+    summary = {"interactive": a.interactive, "pass": n_pass, "fail": n_fail, "skip": n_skip, "results": results}
     if a.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:

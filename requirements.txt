@@ -1,14 +1,16 @@
-# screen-vision dependencies, ALL OPTIONAL.
-# The skill runs on the Python standard library alone (pure-ctypes GDI capture,
-# stdlib PNG writer, ctypes click). Install these to unlock richer layers.
+# screen-vision Python packages for additional capabilities.
+# Windows GDI capture and PNG writing use the Python standard library.
+# Confirmed actions require uiautomation on Windows. Saving captures also requires
+# Git and authenticated gh to verify a PRIVATE companion repository.
+# Install the packages below for the capabilities you need.
 
 # Recommended core: structured elements + fast/cross-platform capture + annotation
 uiautomation>=2.0 ; platform_system == "Windows"   # UIA element tree (the primary read path)
 mss>=9.0                                             # fast, cross-platform screen capture
-pillow>=10.0                                         # Set-of-Mark annotated PNG (capture still works without it)
+pillow>=10.0                                         # WinOCR image input + Set-of-Mark annotation; GDI capture works without it
 
 # OCR (read text the accessibility tree does not expose), pick ONE:
-# winocr>=0.0.16 ; platform_system == "Windows"     # Windows-native OCR, no model download
+# winocr>=0.0.16 ; platform_system == "Windows"     # Windows-native OCR; also requires Pillow for image input
 # rapidocr-onnxruntime>=1.3                          # cross-platform, offline (pulls onnxruntime + opencv)
 
 # Optional: capture occluded / hardware-accelerated / background windows

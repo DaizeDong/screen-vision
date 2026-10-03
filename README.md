@@ -116,6 +116,7 @@ create its `data/` directory, and authenticate `gh` with access to it. Capture c
 configured and effective fetch/push URL and proves each repository PRIVATE before reading the screen.
 Only canonical GitHub HTTPS routes (default port or 443) are currently admitted. SSH is unverified
 and refused. URL rewrites, transport overrides, proxies, and alternate TLS trust settings also refuse.
+Pager settings (`GIT_PAGER`, `GH_PAGER`, `PAGER`) are accepted and removed from captured subprocess environments.
 `--out-dir` selects a new directory within that data root; it cannot overwrite a prior capture.
 
 A narrow target that is invalid or missing returns an error without a screenshot. Scope expands

@@ -164,6 +164,10 @@ def transport_cases():
     origin = 'https://github.com/example-owner/screen-vision-config.git'
     cases = [
         {'id': 'canonical', 'allow': True},
+        {'id': 'pager', 'env': {'GIT_PAGER': 'cat'}, 'allow': True},
+        {'id': 'pager-commands', 'env': {'GIT_PAGER': 'synthetic-unavailable-pager',
+                                      'GH_PAGER': 'synthetic-unavailable-pager',
+                                      'PAGER': 'synthetic-unavailable-pager'}, 'allow': True},
         {'id': 'canonical-port', 'origin': origin.replace('github.com/', 'github.com:443/'), 'allow': True},
         {'id': 'nonstandard-port', 'origin': origin.replace('github.com/', 'github.com:8443/')},
         {'id': 'ssh-port', 'origin': 'ssh://git@github.com:2222/example-owner/screen-vision-config.git'},
@@ -222,6 +226,7 @@ def transport_cases():
         case.setdefault('push', [case['origin']])
         case.setdefault('private', 'true')
         case.setdefault('env', {})
+        case['env'].setdefault('GIT_PAGER', 'cat')
         case.setdefault('allow', False)
     return cases
 

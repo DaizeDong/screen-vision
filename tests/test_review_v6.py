@@ -50,6 +50,9 @@ def test_private_route_proof_precedes_capture(case, tmp_path, monkeypatch):
         assert any(args[0] == 'gh' for args, kw in calls)
         assert all(kw.get('env', {}).get('GIT_OPTIONAL_LOCKS') == '0'
                    for args, kw in calls if args[0] == 'git')
+        assert all(not {'GIT_PAGER', 'GH_PAGER', 'PAGER'} & kw['env'].keys()
+                   for args, kw in calls)
+        assert all(os.environ[key] == value for key, value in case['env'].items())
     else:
         with pytest.raises(RuntimeError):
             artifact_store.artifact_directory('captures/acme')

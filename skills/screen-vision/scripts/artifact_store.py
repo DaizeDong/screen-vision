@@ -10,10 +10,13 @@ TOOL_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _run(args):
+    env = {name: value for name, value in os.environ.items()
+           if name.casefold() not in {'git_pager', 'gh_pager', 'pager'}}
+    env['GIT_OPTIONAL_LOCKS'] = '0'
     try:
         result = subprocess.run(args, capture_output=True, text=True, encoding='utf-8',
                                 errors='strict', timeout=20, check=False,
-                                env={**os.environ, 'GIT_OPTIONAL_LOCKS': '0'})
+                                env=env)
     except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError('Cannot verify private artifacts: %s unavailable' % args[0]) from exc
     if result.returncode:
@@ -82,7 +85,7 @@ def _repository(remote):
 
 def _check_environment():
     _verify_https_environment()
-    allowed_git = {'git_optional_locks'} | _HTTPS_PERFORMANCE_ENV
+    allowed_git = {'git_optional_locks', 'git_pager'} | _HTTPS_PERFORMANCE_ENV
     for name in os.environ:
         key = name.casefold()
         if ((key.startswith('git_') and key not in allowed_git)

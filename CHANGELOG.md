@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here (Keep a Changelog style).
 
+## [Unreleased]
+
+### Changed
+- Invalid or missing narrow targets now fail without a screenshot by default. Full-screen fallback requires `--allow-full-screen-fallback` and is recorded in the capture manifest. This supersedes the implicit fallback documented for 0.1.1.
+- Verify the PRIVATE artifact destination before capture and keep each capture in a new directory.
+- Require fresh process, window and UIA identity for every action; expired or changed targets request recapture, and uncertain action outcomes require inspection before retry.
+- Verify effective DPI awareness, limit OCR to uncovered text regions, and separate offline checks from explicit interactive desktop acceptance.
+- Explain why accessibility data, private capture storage and action validation have different roles.
+
+### Fixed
+- Accept pager settings while removing them from Git and GitHub subprocess environments.
+- Keep Chinese setup guidance aligned with private-storage and complete window-title discovery requirements.
+
 ## [0.1.1] - 2026-06-25
 ### Added
 - `pure_ops.compute_ocr_regions()`, region-targeted OCR pre-filter (ARCH 1.5): split the captured

@@ -13,37 +13,24 @@ Screenshot any desktop window and get its buttons + text as pixel-accurate, clic
 
 ---
 
-## ⭐ Read this first, the design philosophy
+## Design Philosophy
 
-Most "let the agent see the screen" tools start from a screenshot and ask a vision model "where is the
-button?". That is backwards. The operating system already exposes a **structured accessibility tree**
-(UI Automation) where every control's name, type, state, and exact rectangle are facts, no model, no
-guessing, no anti-aliasing or DPI ambiguity. So screen-vision is built on one principle:
+The accessibility tree exposes names, states and geometry for controls that participate in
+Windows UI Automation. Reading that structure avoids estimating those properties from pixels.
+OCR fills the uncovered text regions; it does not turn an OCR box into verified action authority.
+Custom-drawn controls and incomplete accessibility trees remain explicit limits.
 
-> **Read the accessibility tree first; use vision (OCR / icon models) only to fill its gaps; and never
-> act on a coordinate you cannot verify.**
+Coordinates are useful only in the right context. The tool verifies effective DPI awareness,
+records the owning process and window, and re-resolves the saved UIA identity before an action.
+This can require a new capture after a layout change or after the capture expires. Refusing a
+stale target is preferable to applying an action to a different control.
 
-Three decisions follow directly from that, and they are why this is reliable where pixel-matching tools
-are flaky:
+Capture and action are separate commands. Capture first verifies a PRIVATE destination because
+screen pixels can contain personal data; action defaults to a dry run and needs explicit confirmation.
+Synthetic checks exercise those decisions. Native input, monitor scaling and platform permissions
+require their own desktop acceptance.
 
-1. **UIA is the source of truth, vision is the fallback.** Structured elements come back with
-   confidence 1.0 and an `Invoke` pattern you can trigger *without coordinates at all*. OCR only runs
-   on a cropped, masked image that excludes named UIA Text rectangles. Window/pane names and
-   AutomationIds do not establish text coverage; OCR fusion uses the same text rectangles.
-   This follows the hybrid
-   detection Microsoft's UFO² uses.
-2. **DPI awareness before anything else.** The single biggest reason screen tools mis-click is a
-   non-DPI-aware process: Windows stretch-virtualizes the screenshot and UIA rectangles drift. The
-   scripts attempt Per-Monitor-V2 on import and query effective awareness before using coordinates.
-   Unverified, unaware, or system-aware contexts stop capture and actions. Offline tests exercise
-   these decisions; actual monitor scaling requires the separately enabled desktop tests.
-3. **Read-only by default; clicking is an explicit, dry-run-first opt-in.** Seeing the screen is safe;
-   acting on it is not. Login / payment / 2FA stay with the human.
-
-📜 **[Read the full design philosophy → PHILOSOPHY.md](PHILOSOPHY.md)** (each principle with the
-patch-vs-root contrast and the real decision it produced).
-
----
+[Read the full design philosophy](PHILOSOPHY.md).
 
 ## What it is (and isn't)
 

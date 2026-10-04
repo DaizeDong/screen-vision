@@ -10,8 +10,8 @@ falls back to the image only where the tree is silent.
 
 - **Symptom patch:** screenshot → vision model → "the button is around (x, y)". Flaky: sensitive to
   theme, font, resolution, anti-aliasing, and the model's spatial guess.
-- **Root cause:** the OS already knows every control's name, type, state, and exact rectangle via UI
-  Automation. That data is model-free and pixel-exact. Ignoring it and re-deriving it from pixels is
+- **Root cause:** participating controls expose names, types, states and rectangles through UI
+  Automation. This avoids model-based spatial estimates, but incomplete trees remain a limitation. Ignoring it and re-deriving it from pixels is
   the actual mistake.
 - **Decision it produced:** UIA is L2a, the primary path (confidence 1.0). Visible, named UIA Text
   rectangles define the covered pixels: the OCR input masks them, and OCR boxes overlapping

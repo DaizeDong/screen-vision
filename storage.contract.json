@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "tool": "screen-vision",
+  "artifacts": [
+    {
+      "artifact_id": "capture_frames",
+      "path_pattern": "data/captures/*/screen.png",
+      "purpose": "The captured frame supporting one scoped UI observation.",
+      "schema": "skills/screen-vision/reference/schema.md; skills/screen-vision/scripts/_common.py: write_png",
+      "producer": "skills/screen-vision/scripts/capture.py",
+      "consumer_or_final_deliverable": "The active UI task, OCR/annotation, or a specifically selected final capture.",
+      "rebuild_or_restore": "Restore the exact frame for retained evidence; a new capture observes a different point in time.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep while the UI task or a selected final deliverable references this frame. Release the capture set after task acceptance and all action or evidence dependencies end."
+      }
+    },
+    {
+      "artifact_id": "capture_manifests",
+      "path_pattern": "data/captures/*/capture.json",
+      "purpose": "Resolved capture scope, timestamp, target identity and artifact paths.",
+      "schema": "skills/screen-vision/reference/schema.md: capture metadata schema_version 2 and CLI receipt",
+      "producer": "skills/screen-vision/scripts/capture.py",
+      "consumer_or_final_deliverable": "Consumers verifying the associated observation and its selected final evidence.",
+      "rebuild_or_restore": "Restore with the exact matching capture artifacts; do not invent a receipt for a failed or later capture.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep with the associated active or selected capture. Retire only after that capture's action and evidence dependencies have ended."
+      }
+    },
+    {
+      "artifact_id": "observed_elements",
+      "path_pattern": "data/captures/*/elements.json",
+      "purpose": "Scoped UIA and OCR element observations used by the current task.",
+      "schema": "skills/screen-vision/reference/schema.md: element JSON schema",
+      "producer": "skills/screen-vision/scripts/capture.py",
+      "consumer_or_final_deliverable": "skills/screen-vision/scripts/click.py and the selected capture's observation consumers.",
+      "rebuild_or_restore": "Restore for historical observation only; confirmed actions still require fresh identity and target validation.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep while a current action or selected evidence references the elements. End retention with the capture set once those dependencies end; old elements never authorize replay."
+      }
+    },
+    {
+      "artifact_id": "annotated_frames",
+      "path_pattern": "data/captures/*/annotated.png",
+      "purpose": "Optional numbered visualization of the retained frame and elements.",
+      "schema": "skills/screen-vision/scripts/capture.py: annotate; skills/screen-vision/reference/schema.md",
+      "producer": "skills/screen-vision/scripts/capture.py",
+      "consumer_or_final_deliverable": "Visual inspection during the current task or a selected final annotated capture.",
+      "rebuild_or_restore": "Regenerate from the matching frame and elements with the original capture origin.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Remove after inspection when no selected final deliverable references this image and the writer has stopped; keep any specifically selected deliverable until its retention ends."
+      }
+    },
+    {
+      "artifact_id": "ocr_working_frames",
+      "path_pattern": "data/captures/*/ocr-input.png",
+      "purpose": "Cropped and masked private image prepared for the capture's OCR stage.",
+      "schema": "skills/screen-vision/scripts/capture.py: OCR input preparation; skills/screen-vision/reference/schema.md",
+      "producer": "skills/screen-vision/scripts/capture.py",
+      "consumer_or_final_deliverable": "The active OCR stage and an explicitly unresolved OCR diagnosis.",
+      "rebuild_or_restore": "Recreate from the retained frame and matching masking inputs if available; otherwise a new capture produces a new observation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Remove after the capture completes and any specific OCR diagnosis ends, provided no writer or selected evidence still needs this intermediate image."
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "tool": "screen-vision",
+  "max_bytes": 67108864,
   "artifacts": [
     {
       "artifact_id": "capture_frames",

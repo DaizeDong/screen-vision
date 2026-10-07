@@ -4,6 +4,10 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
+### Storage review threshold
+- Set a 64 MiB companion working-data review threshold. Required observations and
+  recovery state stay protected when the threshold is exceeded.
+
 ### Changed
 - Invalid or missing narrow targets now fail without a screenshot by default. Full-screen fallback requires `--allow-full-screen-fallback` and is recorded in the capture manifest. This supersedes the implicit fallback documented for 0.1.1.
 - Verify the PRIVATE artifact destination before capture and keep each capture in a new directory.

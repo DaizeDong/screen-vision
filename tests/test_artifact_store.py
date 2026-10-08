@@ -23,6 +23,8 @@ def test_visibility_is_required_for_versioned_output(tmp_path, monkeypatch, visi
             return SimpleNamespace(returncode=0, stdout='remote.origin.url\nhttps://github.com/example-owner/screen-vision-config.git\0')
         pytest.fail('unexpected external command')
     monkeypatch.setattr(artifact_store.subprocess, 'run', run)
+    # Route-only controls; test_artifact_admission exercises the native write gate.
+    monkeypatch.setattr(artifact_store, 'authorize_capture_artifact', lambda path: Path(path))
     if visibility == 'true':
         path = artifact_store.artifact_directory('captures/acme')
         assert path == data/'captures/acme'
@@ -45,3 +47,15 @@ def test_escape_from_private_data_is_rejected_before_external_calls(tmp_path, mo
     monkeypatch.setattr(artifact_store.subprocess, 'run', lambda *a, **kw: pytest.fail('escaped path reached external validation'))
     with pytest.raises(RuntimeError, match='reserved|stay within'):
         artifact_store.artifact_directory('../outside')
+
+
+@pytest.mark.parametrize('requested', ['other/acme', 'captures/nested/acme', 'captures'])
+def test_undeclared_capture_layout_is_rejected_before_proof(tmp_path, monkeypatch, requested):
+    data = tmp_path/'data'
+    data.mkdir()
+    monkeypatch.setenv('SCREEN_VISION_DATA_DIR', str(data))
+    monkeypatch.setattr(artifact_store.subprocess, 'run',
+                        lambda *a, **kw: pytest.fail('undeclared layout reached proof'))
+    with pytest.raises(RuntimeError, match='captures'):
+        artifact_store.artifact_directory(requested)
+    assert list(data.iterdir()) == []

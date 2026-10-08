@@ -152,3 +152,9 @@ partial outputs may remain for inspection, but no successful `capture.json` is p
 `--interactive-desktop`; this is separate from `python tests/run_gate.py --interactive`, which
 creates one synthetic native window, exercises it and cleans only its own process. The default
 gate is offline. Missing optional capabilities are reported as skipped, never proven.
+
+Atomic JSON writes stage `capture.json.tmp` and `elements.json.tmp` beside their final
+artifacts. Successful replacement consumes staging. Failed writes or replacement may
+leave staging bytes; they do not constitute successful captures. Wait for the writer
+to stop, reconcile the failure receipt, then retry in a new directory. Storage ownership
+and inactive retention are declared in [DATA.md](../../../DATA.md).

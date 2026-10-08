@@ -41,6 +41,7 @@ def prepare_capture(scene, tmp_path, monkeypatch, *, layers='uia', retry=False):
         rgb = scene['black_rgb'] if retry and events.count('grab') == 1 else scene['rgb']
         return rgb, scene['width'], scene['height'], 'synthetic'
     monkeypatch.setattr(capture, 'artifact_directory', directory)
+    monkeypatch.setattr(capture, 'authorize_capture_artifact', lambda path: Path(path))
     monkeypatch.setattr(capture, 'grab_target', grab)
     monkeypatch.setattr(capture, 'collect_uia', lambda *args: copy.deepcopy(scene['elements']))
     monkeypatch.setattr(capture, 'collect_ocr', lambda *args: [])

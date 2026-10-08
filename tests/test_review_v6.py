@@ -45,6 +45,7 @@ def test_private_route_proof_precedes_capture(case, tmp_path, monkeypatch):
             pytest.fail('unexpected command')
         return SimpleNamespace(returncode=0, stdout=value)
     monkeypatch.setattr(artifact_store.subprocess, 'run', run)
+    monkeypatch.setattr(artifact_store, 'authorize_capture_artifact', lambda path: Path(path))
     if case['allow']:
         assert artifact_store.artifact_directory('captures/acme') == data / 'captures/acme'
         assert any(args[0] == 'gh' for args, kw in calls)
@@ -71,6 +72,7 @@ def capture_scene(scene, engine, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(capture, 'resolve_target', lambda *args: {'kind': 'all', 'rect': region,
                          'origin': region[:2], 'monitor': monitor})
     monkeypatch.setattr(capture, 'artifact_directory', lambda *args: tmp_path / 'capture')
+    monkeypatch.setattr(capture, 'authorize_capture_artifact', lambda path: Path(path))
     monkeypatch.setattr(capture, 'grab_target', lambda *args: (scene['rgb'], 64, 64, 'synthetic'))
     monkeypatch.setattr(capture, 'collect_uia', lambda *args: scene['elements'])
     inputs, images = [], {}

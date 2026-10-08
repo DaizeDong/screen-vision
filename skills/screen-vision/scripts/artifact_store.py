@@ -1,12 +1,47 @@
-"""Strict private output boundary until the shared guard exposes visibility proof."""
+"""Explicit-only capture storage selection with strict private publication proof."""
 import os
+import importlib.util
 from pathlib import Path
 import re
 import subprocess
+import sys
 from urllib.parse import urlsplit
 import uuid
 
 TOOL_ROOT = Path(__file__).resolve().parents[3]
+
+ARTIFACT_IDS = {
+    'screen.png': 'capture_frames', 'capture.json': 'capture_manifests',
+    'elements.json': 'observed_elements', 'annotated.png': 'annotated_frames',
+    'ocr-input.png': 'ocr_working_frames', 'capture.json.tmp': 'capture_json_staging',
+    'elements.json.tmp': 'elements_json_staging',
+}
+
+
+def _storage_module():
+    path = TOOL_ROOT / 'guards/tools/storage_contract.py'
+    try:
+        spec = importlib.util.spec_from_file_location('screen_capture_storage_contract', path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module
+    except (OSError, ImportError, AttributeError) as exc:
+        raise RuntimeError('Initialize pinned guards artifact admission before capture.') from exc
+
+
+def authorize_capture_artifact(requested):
+    """Admit only this producer's concrete capture leaves, preserving lexical paths."""
+    path = Path(requested).expanduser().absolute()
+    identifier = ARTIFACT_IDS.get(path.name)
+    if identifier is None or len(path.parents) < 4:
+        raise RuntimeError('Undeclared capture artifact filename.')
+    root = path.parents[3]
+    try:
+        return _storage_module().authorize_artifact_write(
+            TOOL_ROOT, root, path.relative_to(root).as_posix(), artifact_id=identifier).path
+    except (OSError, RuntimeError, ValueError, AttributeError) as exc:
+        raise RuntimeError('Capture artifact admission refused: ' + str(exc)) from exc
 
 
 def _run(args):
@@ -155,7 +190,12 @@ def artifact_directory(requested=''):
     base = Path(data).expanduser() if data else Path(config).expanduser() / 'data'
     if not base.is_dir():
         raise RuntimeError('Configured private data directory does not exist; initialize the companion first.')
-    base = base.resolve()
+    storage = _storage_module()
+    try:
+        storage.no_links(base)
+    except ValueError as exc:
+        raise RuntimeError('Capture storage topology refused: ' + str(exc)) from exc
+    base = base.absolute()
     if base.is_relative_to(TOOL_ROOT) or TOOL_ROOT.is_relative_to(base):
         raise RuntimeError('Artifacts must be outside the tool worktree.')
     candidate = Path(requested).expanduser() if requested else base / 'captures' / ('run-' + uuid.uuid4().hex)
@@ -164,16 +204,26 @@ def artifact_directory(requested=''):
     if any(part.lower() == '.git' or ':' in part or part.endswith((' ', '.'))
            for part in candidate.parts[1:]):
         raise RuntimeError('Artifact path contains reserved or ambiguous components.')
-    candidate = candidate.resolve()
+    try:
+        storage.no_links(candidate, allow_missing=True)
+    except ValueError as exc:
+        raise RuntimeError('Capture storage topology refused: ' + str(exc)) from exc
+    candidate = candidate.absolute()
     if not candidate.is_relative_to(base):
         raise RuntimeError('Artifact path must stay within the configured private data directory.')
+    if candidate.parent != base / 'captures':
+        raise RuntimeError('Capture output must be one new directory directly beneath data/captures/.')
     existing = candidate
     while not existing.exists():
         existing = existing.parent
     repo = Path(_run(['git', '-C', str(existing), 'rev-parse', '--show-toplevel'])).resolve()
     if not base.is_relative_to(repo) or repo.is_relative_to(TOOL_ROOT) or TOOL_ROOT.is_relative_to(repo):
         raise RuntimeError('Artifacts require a separate versioned private companion.')
+    if base != repo / 'data':
+        raise RuntimeError('Capture storage must use the companion data/ directory declared by the tool.')
     _verify_repository(repo)
     if os.path.lexists(candidate):
         raise RuntimeError('Capture output directory already exists; choose a new output directory.')
+    for name in ('screen.png', 'capture.json', 'elements.json', 'capture.json.tmp', 'elements.json.tmp'):
+        authorize_capture_artifact(candidate / name)
     return candidate

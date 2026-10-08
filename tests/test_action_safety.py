@@ -192,6 +192,7 @@ def capture_world(monkeypatch):
     monkeypatch.setattr(capture.C, 'has_interactive_desktop', lambda: True)
     monkeypatch.setattr(capture.C, 'capture_region', lambda l, t, w, h: (captures.append([l, t, w, h]) or b'\xff' * (w*h*3), w, h, 'synthetic'))
     monkeypatch.setattr(capture, 'artifact_directory', lambda requested: Path(requested), raising=False)
+    monkeypatch.setattr(capture, 'authorize_capture_artifact', lambda path: Path(path))
     return captures
 
 

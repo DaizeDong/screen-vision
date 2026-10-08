@@ -67,6 +67,36 @@
         "class": "rebuildable",
         "rule": "Remove after the capture completes and any specific OCR diagnosis ends, provided no writer or selected evidence still needs this intermediate image."
       }
+    },
+    {
+      "artifact_id": "capture_json_staging",
+      "path_pattern": "data/captures/*/capture.json.tmp",
+      "purpose": "Atomic JSON staging for the corresponding capture artifact before successful replacement.",
+      "schema": "skills/screen-vision/scripts/capture.py: write_json_artifact; staged JSON uses the matching final artifact schema.",
+      "producer": "skills/screen-vision/scripts/capture.py: write_json_artifact.",
+      "consumer_or_final_deliverable": "The active atomic writer and operator inspection of an interrupted or failed capture.",
+      "rebuild_or_restore": "Inspect the failure receipt and retained capture inputs; retry capture in a new directory. Never promote leftover staging bytes into successful evidence.",
+      "persistence": "transient",
+      "transient_reason": "Same-directory staging exists only until atomic replacement; a failed writer may leave it for inactive recovery.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Successful os.replace consumes the staging file. If writing or replacement fails, retain while the writer is active or diagnosis unresolved; remove only after the writer has stopped and the failure has been reconciled."
+      }
+    },
+    {
+      "artifact_id": "elements_json_staging",
+      "path_pattern": "data/captures/*/elements.json.tmp",
+      "purpose": "Atomic JSON staging for the corresponding capture artifact before successful replacement.",
+      "schema": "skills/screen-vision/scripts/capture.py: write_json_artifact; staged JSON uses the matching final artifact schema.",
+      "producer": "skills/screen-vision/scripts/capture.py: write_json_artifact.",
+      "consumer_or_final_deliverable": "The active atomic writer and operator inspection of an interrupted or failed capture.",
+      "rebuild_or_restore": "Inspect the failure receipt and retained capture inputs; retry capture in a new directory. Never promote leftover staging bytes into successful evidence.",
+      "persistence": "transient",
+      "transient_reason": "Same-directory staging exists only until atomic replacement; a failed writer may leave it for inactive recovery.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Successful os.replace consumes the staging file. If writing or replacement fails, retain while the writer is active or diagnosis unresolved; remove only after the writer has stopped and the failure has been reconciled."
+      }
     }
   ]
 }

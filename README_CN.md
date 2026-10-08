@@ -85,6 +85,10 @@ python skills/screen-vision/scripts/click.py --elements-json <path> --id 30 --co
 清单记录请求范围、实际范围、时间和文件路径；[合成示例](tests/fixtures/element.json)由生成器生成。
 
 先创建私有伴生仓，用 `git clone https://github.com/OWNER/REPOSITORY.git` 克隆，再将 `SCREEN_VISION_CONFIG` 指向该目录，创建其中的 `data/`，并登录 `gh`。每次截图前会检查所有配置及实际生效的拉取、推送地址，并确认各仓库为 PRIVATE。目前只接受 GitHub HTTPS 的默认端口或 443；SSH 尚未验证，暂不支持。URL 重写、代理、TLS 信任覆盖和 Git 路由环境覆盖也会被拒绝。
+存储只按显式设置查找，顺序为 `SCREEN_VISION_DATA_DIR`、`SCREEN_VISION_CONFIG`、
+`SCREEN_VISION_CONFIG_DIR`，不自动查找同级目录或主目录。切换 CONFIG 前须清除继承的 DATA_DIR。
+安装后可以保持未初始化；输出目录选在 `data/captures/` 下。JSON 写入失败可能留下
+`capture.json.tmp` 或 `elements.json.tmp`，须等写入进程结束、核对失败记录后再处理，详见 [DATA.md](DATA.md)。
 允许设置 `GIT_PAGER`、`GH_PAGER` 和 `PAGER`，调用 Git/GitHub 子进程时会移除它们。
 目标无效时不会自动截取全屏；只有显式指定 `--allow-full-screen-fallback` 才能扩大范围。
 按标题查找窗口时，所有可见窗口的标题都必须成功读取；枚举不完整、读取失败或标题发生变化都会中止查找。
@@ -110,3 +114,5 @@ python skills/screen-vision/scripts/click.py --elements-json <path> --id 30 --co
 ## Roadmap · 贡献 · 许可
 
 见 [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [LICENSE](LICENSE)(MIT)。
+
+截图前会逐一检查所需产物的声明、有效的 PRIVATE 凭据、已有提交和 Git 可跟踪性。写入及替换最终文件前还会再次检查；JSON 暂存文件只有在源契约明确声明为临时产物时，才允许被 Git 忽略。

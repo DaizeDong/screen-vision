@@ -116,6 +116,7 @@ def publish_case(case, rows, upstream_warnings):
         "os": SimpleNamespace(path=os.path, makedirs=lambda *args, **kwargs: None),
         "resolve_target": lambda *args: {"kind": "region", "rect": case["region"][:]},
         "artifact_directory": lambda requested: "synthetic-output",
+        "authorize_capture_artifact": lambda path: path,
         "grab_target": lambda target: (case["rgb"], 16, 16, "synthetic"),
         "persist_artifact": lambda path, writer: writer(),
         "collect_uia": collect, "collect_ocr": ocr, "verify_target": lambda target: None,

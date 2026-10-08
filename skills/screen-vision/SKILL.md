@@ -19,6 +19,11 @@ list of buttons/text/inputs with **physical-pixel** coordinates, optionally clic
   only OCR pixels). "beyond the browser" in the description is the boundary.
 - Generating pixel art / editing an image file → not this skill (`pixel-art` / image tools).
 
+Capture storage uses explicit DATA_DIR > CONFIG > CONFIG_DIR selection; it has no
+sibling or home fallback. Keep the tool uninitialized until storage is needed. See
+[DATA.md](../../DATA.md) for `data/captures/` layout and the atomic JSON staging files
+that require inactive failure reconciliation.
+
 ## Workflow (thin)
 
 1. **Probe once**, `python scripts/probe.py`. It separates installed backends from session readiness;
@@ -88,3 +93,5 @@ An uncertain dispatch returns `action_outcome_unknown`; check its result before 
 
 This `SKILL.md` is the only always-loaded file. Load `reference/schema.md` (CLI + JSON contract) or
 `reference/backends.md` (libraries, install, platform caveats) on demand, never both preemptively.
+
+Capture preflights its concrete source-owned output files before reading pixels. A committed PRIVATE companion, current route proof and versionable durable paths are required. Missing or retired artifacts fail closed; storage failures, including annotation failures, are not successful capture evidence.

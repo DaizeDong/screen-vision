@@ -104,7 +104,11 @@ configured and effective fetch/push URL and proves each repository PRIVATE befor
 Only canonical GitHub HTTPS routes (default port or 443) are currently admitted. SSH is unverified
 and refused. URL rewrites, transport overrides, proxies, and alternate TLS trust settings also refuse.
 Pager settings (`GIT_PAGER`, `GH_PAGER`, `PAGER`) are accepted and removed from captured subprocess environments.
-`--out-dir` selects a new directory within that data root; it cannot overwrite a prior capture.
+Storage selection is explicit-only: `SCREEN_VISION_DATA_DIR` > `SCREEN_VISION_CONFIG` >
+`SCREEN_VISION_CONFIG_DIR`. Clear inherited DATA_DIR before switching CONFIG. No sibling
+or home fallback is used, and installation can remain uninitialized. `--out-dir` selects
+a new directory under `data/captures/`; it cannot overwrite a prior capture. See [DATA.md](DATA.md)
+for the two transient JSON staging paths and inactive failure recovery.
 
 A narrow target that is invalid or missing returns an error without a screenshot. Scope expands
 only with `--allow-full-screen-fallback`, and that choice is recorded in the manifest.
@@ -144,3 +148,5 @@ English (`README.md`, authoritative) · 中文 (`README_CN.md`)
 ## Roadmap · Contributing · License
 
 See [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [LICENSE](LICENSE) (MIT).
+
+Before reading screen pixels, capture checks the selected concrete output artifacts against the source storage contract. The companion needs a committed HEAD and current PRIVATE route proof; ignored durable artifacts and missing or retired declarations refuse capture. JSON staging and final publication are checked again at the write boundary.

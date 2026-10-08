@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "repository_kind": "skill",
+  "configuration": "runtime-storage-only",
+  "rationale": "Environment selectors locate private runtime artifacts; the tool has no persistent settings registry. Installation may remain uninitialized.",
+  "documentation": [
+    "README.md",
+    "DATA.md",
+    "skills/screen-vision/SKILL.md"
+  ]
+}

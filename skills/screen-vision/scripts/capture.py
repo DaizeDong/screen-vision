@@ -23,7 +23,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _common as C  # noqa: E402
 import pure_ops as P  # noqa: E402  (pure-stdlib helpers: black-retry, region-OCR)
-from artifact_store import artifact_directory
+from artifact_store import artifact_directory, authorize_capture_artifact
 
 CLICKABLE_TYPES = {
     "button", "menuitem", "checkbox", "radiobutton", "tabitem", "listitem",
@@ -305,8 +305,10 @@ def annotate(png_path, out_path, elements, origin, warnings):
             tx, ty = max(0, x0), max(0, y0 - 12)
             d.rectangle([tx, ty, tx + 8 * len(tag) + 4, ty + 12], fill=color)
             d.text((tx + 2, ty), tag, fill=(255, 255, 255))
-        img.save(out_path)
+        persist_artifact(out_path, lambda: img.save(out_path))
         return out_path
+    except ArtifactWriteError:
+        raise
     except Exception as e:
         warnings.append("annotate: failed (%s)" % e)
         return None
@@ -406,8 +408,9 @@ class ArtifactWriteError(OSError):
 def persist_artifact(path, writer):
     """Keep the intended artifact path when the underlying writer fails."""
     try:
+        authorize_capture_artifact(path)
         writer()
-    except OSError as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         raise ArtifactWriteError(path, exc) from exc
 
 
@@ -415,8 +418,11 @@ def write_json_artifact(path, value):
     """Publish complete JSON only; a failed write leaves no successful manifest."""
     def write():
         temporary = path + ".tmp"
+        authorize_capture_artifact(temporary)
         with open(temporary, "x", encoding="utf-8") as handle:
             json.dump(value, handle, ensure_ascii=False, indent=2)
+        authorize_capture_artifact(temporary)
+        authorize_capture_artifact(path)
         os.replace(temporary, path)
     persist_artifact(path, write)
 
@@ -497,6 +503,10 @@ def capture_main():
 
     try:
         out_dir = str(artifact_directory(a.out_dir))
+        if 'ocr' in layers:
+            authorize_capture_artifact(os.path.join(out_dir, 'ocr-input.png'))
+        if a.annotate == 'true':
+            authorize_capture_artifact(os.path.join(out_dir, 'annotated.png'))
         os.makedirs(out_dir, exist_ok=False)
     except (RuntimeError, OSError) as exc:
         print(json.dumps({"ok": False, "error": "artifact_store_unavailable", "detail": str(exc),

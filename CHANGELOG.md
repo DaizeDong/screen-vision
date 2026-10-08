@@ -4,6 +4,9 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
+- Bind concrete runtime writer destinations and transaction files to canonical source artifact admission before creation. Offline regression controls preserve PRIVATE, retention, topology and versioning refusals.
+
+
 ### Storage review threshold
 - Set a 64 MiB companion working-data review threshold. Required observations and
   recovery state stay protected when the threshold is exceeded.
@@ -16,6 +19,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 - Explain why accessibility data, private capture storage and action validation have different roles.
 
 ### Fixed
+- Declare both atomic JSON staging paths and inactive failure recovery. Restrict capture layout to data/captures/<run> and document the current explicit-only storage selectors.
 - Accept pager settings while removing them from Git and GitHub subprocess environments.
 - Keep Chinese setup guidance aligned with private-storage and complete window-title discovery requirements.
 

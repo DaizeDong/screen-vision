@@ -1,16 +1,14 @@
 # Contributing to screen-vision
 
-Thanks for your interest. screen-vision is small on purpose, one job (read the screen, optionally act
-on it), three verbs.
+Keep changes focused on desktop capture, structured element observation and explicitly requested actions.
 
 ## Before you change anything
 
-Read [PHILOSOPHY.md](PHILOSOPHY.md). A change is only accepted if it fits the five principles,
-especially: **UIA before vision (P1)**, **DPI awareness before pixels (P2)**, **verifiable clicks
-(P3)**, **read-only default (P4)**, **degrade loud (P5)**. A "feature" that violates one of these is a
-regression, not a contribution.
+Read [PHILOSOPHY.md](PHILOSOPHY.md). Preserve accessibility-first observation,
+effective DPI checks, verified actions, read-only defaults and explicit unavailable
+results.
 
-## The bar: prove it, don't assert it
+## Verification
 
 Every change must keep the eval gate green:
 
@@ -20,7 +18,7 @@ python tests/run_gate.py --json # offline gate; skipped capabilities remain unve
 ```
 
 If you add a capability, add a program-judgeable check for it (golden assertion, closed-loop, or
-synthetic fixture). "It looks right" is not acceptance, a passing check is.
+synthetic fixture). State which checks ran and distinguish offline results from native desktop evidence.
 
 ## Conventions
 

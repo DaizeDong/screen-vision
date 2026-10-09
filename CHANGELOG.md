@@ -4,14 +4,10 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
+### Changed
 - Bind concrete runtime writer destinations and transaction files to canonical source artifact admission before creation. Offline regression controls preserve PRIVATE, retention, topology and versioning refusals.
-
-
-### Storage review threshold
 - Set a 64 MiB companion working-data review threshold. Required observations and
   recovery state stay protected when the threshold is exceeded.
-
-### Changed
 - Invalid or missing narrow targets now fail without a screenshot by default. Full-screen fallback requires `--allow-full-screen-fallback` and is recorded in the capture manifest. This supersedes the implicit fallback documented for 0.1.1.
 - Verify the PRIVATE artifact destination before capture and keep each capture in a new directory.
 - Require fresh process, window and UIA identity for every action; expired or changed targets request recapture, and uncertain action outcomes require inspection before retry.

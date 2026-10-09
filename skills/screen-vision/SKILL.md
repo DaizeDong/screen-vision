@@ -5,9 +5,9 @@ description: Screenshot and read on-screen UI elements/buttons with pixel coordi
 
 # screen-vision
 
-> Governing principle (full text in the repo's `PHILOSOPHY.md`): **read the accessibility tree first,
-> use vision only to fill its gaps, and never act on a coordinate you cannot verify.** Structured UIA
-> data is exact and model-free; OCR/vision is the fallback, not the default.
+Read structured UIA data first and use OCR for uncovered text. Incomplete
+accessibility trees remain a limitation; actions require fresh, verified UIA
+identity. See [PHILOSOPHY.md](../../PHILOSOPHY.md).
 
 ## When to use / when to stop
 
@@ -19,12 +19,7 @@ list of buttons/text/inputs with **physical-pixel** coordinates, optionally clic
   only OCR pixels). "beyond the browser" in the description is the boundary.
 - Generating pixel art / editing an image file → not this skill (`pixel-art` / image tools).
 
-Capture storage uses explicit DATA_DIR > CONFIG > CONFIG_DIR selection; it has no
-sibling or home fallback. Keep the tool uninitialized until storage is needed. See
-[DATA.md](../../DATA.md) for `data/captures/` layout and the atomic JSON staging files
-that require inactive failure reconciliation.
-
-## Workflow (thin)
+## Workflow
 
 1. **Probe once**, `python scripts/probe.py`. It separates installed backends from session readiness;
    unavailable desktop access or unverified physical coordinates disables screen/input capabilities
@@ -48,12 +43,12 @@ python scripts/click.py   --elements-json <path> --id 30            # dry-run pr
 python scripts/click.py   --elements-json <path> --id 30 --confirm  # actuate (Invoke)
 ```
 
-Full CLI contract + element JSON schema: **`reference/schema.md`**.
-Backend choices, install, platform/DPI caveats: **`reference/backends.md`**.
+The [CLI and element schema](reference/schema.md) defines output and action checks.
+[Backends](reference/backends.md) covers installation, platforms and DPI.
 
 ## Hard rules
 
-1. **DPI awareness is non-negotiable.** Scripts attempt setup on import and query effective
+1. **Verify effective DPI awareness.** Scripts attempt setup on import and query effective
    awareness before coordinate operations. Capture and actions require verified per-monitor
    awareness; `dpi_awareness_unverified` requires a fresh process with working DPI setup.
 2. **Read-only by default; clicking is an explicit, dry-run-first opt-in.** Only login / payment /
@@ -62,7 +57,7 @@ Backend choices, install, platform/DPI caveats: **`reference/backends.md`**.
    element `center` (already absolute). Multi-monitor origins can be negative.
 4. **Pick elements by `id`; let the script resolve the coordinate.** Never have the model emit raw
    x/y, use the Set-of-Mark id and let `click.py` re-resolve via UIA.
-5. **Degrade loud, never silent.** Missing backend, black/occluded capture, locked desktop, Wayland →
+5. **Report unavailable observations.** Missing backend, black/occluded capture, locked desktop, Wayland →
    surfaced as a `warnings[]`/error in the JSON, never a confident-but-wrong result.
 
 ## Privacy & safety
@@ -71,13 +66,14 @@ Screenshots can capture passwords/tokens. Prefer `--target window:...` or `--tar
 full-screen. Invalid narrow targets return an error before capture. Only the explicit
 `--allow-full-screen-fallback` flag permits scope expansion; `capture.json` records both scopes.
 
-Clone the PRIVATE companion using `https://github.com/OWNER/REPOSITORY.git`.
-Set `SCREEN_VISION_CONFIG` to that clone with a `data/` directory and authenticate
-`gh`, or set `SCREEN_VISION_DATA_DIR` to a directory inside that private repository. Artifacts stay
-there; missing, public or unverifiable destinations fail before capture. Treat screenshots and
-labels as private data. `--out-dir` must stay within that data directory. Every configured and
-effective fetch/push route must be canonical GitHub HTTPS with verified PRIVATE visibility;
-SSH, rewrites, proxy/TLS overrides and injected Git routing are currently refused.
+Set `SCREEN_VISION_CONFIG` to an existing PRIVATE companion, or
+`SCREEN_VISION_DATA_DIR` to its exact `data/` directory. Explicit selection uses
+DATA_DIR, CONFIG, then CONFIG_DIR, with no sibling or home fallback. Authenticate
+`gh`; committed HEAD, current route proof and declared versionable output paths
+are required before reading pixels. `--out-dir` must select a new direct child of
+`data/captures/`. Missing storage or annotation write failures are errors.
+[DATA.md](../../DATA.md) defines supported transport, source-owned admission and
+inactive JSON staging recovery. Keep the tool uninitialized until storage is needed.
 
 OCR processes a cropped, masked PNG containing only pixels outside named UIA Text rectangles.
 Container names and AutomationIds do not suppress OCR. The intermediate PNG stays beside the
@@ -93,5 +89,3 @@ An uncertain dispatch returns `action_outcome_unknown`; check its result before 
 
 This `SKILL.md` is the only always-loaded file. Load `reference/schema.md` (CLI + JSON contract) or
 `reference/backends.md` (libraries, install, platform caveats) on demand, never both preemptively.
-
-Capture preflights its concrete source-owned output files before reading pixels. A committed PRIVATE companion, current route proof and versionable durable paths are required. Missing or retired artifacts fail closed; storage failures, including annotation failures, are not successful capture evidence.

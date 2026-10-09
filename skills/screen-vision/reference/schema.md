@@ -15,7 +15,7 @@ python capture.py [options]
   --ocr-engine   auto | winocr | rapidocr   default auto (Windows with winocr+Pillow -> winocr; otherwise -> rapidocr)
   --max-depth    UIA descent cap; default 50
   --clickable-only   keep only interactive elements
-  --out-dir      new artifact dir inside configured private data; relative paths are relative to it
+  --out-dir      new direct child of <private-data>/captures; relative paths start at <private-data>
                  default: <private-data>/captures/run-<unique-id>
   --allow-full-screen-fallback  explicitly allow invalid narrow targets to resolve to all
   --annotate     true|false   write Set-of-Mark PNG (needs Pillow); default true
@@ -135,14 +135,13 @@ an empty monitor list and disabled capture/action capabilities, with exit code 1
 
 ## First capture and safe checks
 
-Create a PRIVATE companion repository, clone it with
-`git clone https://github.com/OWNER/REPOSITORY.git`, create its `data/` directory, set
-`SCREEN_VISION_CONFIG` to the clone, and authenticate `gh` with access to it.
-`SCREEN_VISION_DATA_DIR` can select another existing directory within that private repository.
-Every configured and effective fetch/push destination is verified on each capture. Canonical
-GitHub HTTPS is currently supported; SSH is unverified and refused. Rewrites, proxy/TLS overrides,
-and injected Git routing also refuse. Visibility is checked on each capture. `--out-dir` cannot escape the configured data directory
-or reuse an existing directory, even if empty. Capture creates the directory exclusively.
+Configure an existing PRIVATE companion using [DATA.md](../../../DATA.md), which
+defines selector precedence, exact layout, supported transport and output admission.
+`--out-dir` must be a new direct child of `<private-data>/captures`; it cannot reuse
+an existing directory, even if empty. Capture creates the directory exclusively.
+Every capture rechecks configured and effective routes and binds its concrete
+outputs to the source storage contract before reading pixels.
+
 Mandatory artifact write failures return nonzero `ok:false`, `error:artifact_write_failed`, the
 intended `artifact` path and the original error detail. Complete JSON is staged before publication;
 partial outputs may remain for inspection, but no successful `capture.json` is published on failure.

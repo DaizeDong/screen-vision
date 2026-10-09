@@ -1,6 +1,6 @@
 # screen-vision
 
-Screenshot any desktop window and get its buttons + text as pixel-accurate, clickable JSON, accessibility-first, vision as fallback.
+Capture a desktop window and read UI elements with physical-pixel coordinates through accessibility data and OCR. Verified actions are optional.
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -32,22 +32,20 @@ require their own desktop acceptance.
 
 [Read the full design philosophy](PHILOSOPHY.md).
 
-## What it is (and isn't)
+## Scope
 
-It is a **CLI-script skill** (not an MCP server, capture→parse→return is stateless, so no resident
-socket/token cost) that gives an agent three verbs:
+This CLI skill performs one capture/parse/return invocation without a resident
+MCP server. Its three commands are:
 
-- **`probe.py`**, what can this host actually do (DPI, monitors, which backends are installed)?
-- **`capture.py`**, screenshot + a structured element list with **physical-pixel** coordinates
-  (`screen.png` + Set-of-Mark `annotated.png` + `elements.json`).
-- **`click.py`**, optional, dry-run-by-default click on an element by `id` (UIA `Invoke` first,
-  physical click only as fallback).
+- `probe.py`: report DPI, monitor geometry and available backends.
+- `capture.py`: write a screenshot and structured elements with physical-pixel
+  coordinates, plus optional Set-of-Mark annotation.
+- `click.py`: preview or explicitly execute an action by element ID, preferring
+  UIA `Invoke` and allowing a verified physical fallback.
 
-It is **for** desktop / native / Win32 / WinUI / Electron / game / remote-desktop windows, anything
-**beyond the browser**.
-
-It is **not for** web pages, those have a live DOM, so route to **Playwright**. It is also not an
-image generator/editor (that is `pixel-art` / image tools).
+Use it for desktop, native, Win32, WinUI, Electron, game and remote-desktop
+windows. Use Playwright for web DOM access and image tools for image creation or
+editing.
 
 Windows capture has a stdlib GDI/PNG path. Verified actions require fresh Windows UIA identity
 through `uiautomation`. WinOCR image OCR requires both `winocr` and `Pillow`; RapidOCR is the
@@ -74,6 +72,18 @@ pip install winocr pillow                      # OCR (Windows-native, Pillow req
 pip install rapidocr-onnxruntime               # OCR (cross-platform)
 ```
 
+## Config
+
+Select an existing PRIVATE companion with `SCREEN_VISION_CONFIG`, or its exact
+`data/` directory with `SCREEN_VISION_DATA_DIR`, and authenticate `gh`. Storage
+selection is explicit-only: DATA_DIR, CONFIG, then CONFIG_DIR. Clear inherited
+DATA_DIR before switching CONFIG. Installation can remain uninitialized.
+
+Capture requires a committed companion, current PRIVATE route proof and declared,
+versionable artifact paths. Each run uses a new directory directly beneath
+`data/captures/`. [DATA.md](DATA.md) defines initialization, transport restrictions,
+source-owned output admission and recovery of failed JSON staging.
+
 ## Quick start
 
 > "Use screen-vision to read the buttons on screen and click Save."
@@ -96,19 +106,6 @@ beyond the browser.*
 Each run writes `screen.png`, optional `annotated.png`, `elements.json`, and `capture.json`.
 The manifest records requested and resolved scope, capture time and artifact paths. A generated
 [synthetic element example](tests/fixtures/element.json) shows the current identity fields.
-
-Create a PRIVATE companion repository and clone it using
-`git clone https://github.com/OWNER/REPOSITORY.git`. Set `SCREEN_VISION_CONFIG` to that clone,
-create its `data/` directory, and authenticate `gh` with access to it. Capture checks every
-configured and effective fetch/push URL and proves each repository PRIVATE before reading the screen.
-Only canonical GitHub HTTPS routes (default port or 443) are currently admitted. SSH is unverified
-and refused. URL rewrites, transport overrides, proxies, and alternate TLS trust settings also refuse.
-Pager settings (`GIT_PAGER`, `GH_PAGER`, `PAGER`) are accepted and removed from captured subprocess environments.
-Storage selection is explicit-only: `SCREEN_VISION_DATA_DIR` > `SCREEN_VISION_CONFIG` >
-`SCREEN_VISION_CONFIG_DIR`. Clear inherited DATA_DIR before switching CONFIG. No sibling
-or home fallback is used, and installation can remain uninitialized. `--out-dir` selects
-a new directory under `data/captures/`; it cannot overwrite a prior capture. See [DATA.md](DATA.md)
-for the two transient JSON staging paths and inactive failure recovery.
 
 A narrow target that is invalid or missing returns an error without a screenshot. Scope expands
 only with `--allow-full-screen-fallback`, and that choice is recorded in the manifest.
@@ -138,7 +135,7 @@ Skipped checks do not prove desktop capability.
   Their accessibility layers (atomacos / AT-SPI) are not wired. Wayland can block silent capture.
 - UIA blind spots (Chromium/Electron without `--force-renderer-accessibility`, Qt, Canvas, games)
   need the OCR fallback; the heavy vision backend (OmniParser / grounding VLM) is a deferred,
-  user-supplied stub (AGPL weights are not bundled, see `reference/backends.md`).
+  user-supplied stub (AGPL weights are not bundled, see [backends](skills/screen-vision/reference/backends.md)).
 - Reading an elevated (UAC) window requires running Python elevated too.
 
 ## Languages
@@ -148,5 +145,3 @@ English (`README.md`, authoritative) · 中文 (`README_CN.md`)
 ## Roadmap · Contributing · License
 
 See [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [LICENSE](LICENSE) (MIT).
-
-Before reading screen pixels, capture checks the selected concrete output artifacts against the source storage contract. The companion needs a committed HEAD and current PRIVATE route proof; ignored durable artifacts and missing or retired declarations refuse capture. JSON staging and final publication are checked again at the write boundary.

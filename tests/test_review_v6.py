@@ -45,6 +45,10 @@ def test_private_route_proof_precedes_capture(case, tmp_path, monkeypatch):
             pytest.fail('unexpected command')
         return SimpleNamespace(returncode=0, stdout=value)
     monkeypatch.setattr(artifact_store.subprocess, 'run', run)
+    # The live answer itself comes from the guards kit (test_visibility_any_gh_account.py); here the
+    # stubbed process seam keeps answering it in the legacy `gh api ... --jq .private` shape.
+    monkeypatch.setattr(artifact_store, '_github_private', lambda identity: artifact_store._run(
+        ['gh', 'api', '--hostname', 'github.com', 'repos/' + identity, '--jq', '.private']).strip())
     monkeypatch.setattr(artifact_store, 'authorize_capture_artifact', lambda path: Path(path))
     if case['allow']:
         assert artifact_store.artifact_directory('captures/acme') == data / 'captures/acme'

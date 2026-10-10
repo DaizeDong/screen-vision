@@ -30,6 +30,30 @@ def _storage_module():
         raise RuntimeError('Initialize pinned guards artifact admission before capture.') from exc
 
 
+def _github_private(identity):
+    """Live PRIVATE answer for OWNER/NAME, independent of the ACTIVE gh account.
+
+    A plain `gh api repos/OWNER/NAME` asks only with whichever account `gh auth switch` last
+    selected, so an active account that cannot see the companion refused every capture. The
+    pinned guards kit asks with the owner's stored account, then every other stored account, then
+    gh's default, and refuses only when none can see it. Returns 'true' only for PRIVATE."""
+    path = TOOL_ROOT / 'guards/tools/data_boundary.py'
+    try:
+        spec = importlib.util.spec_from_file_location('screen_capture_visibility_boundary', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except (OSError, ImportError, AttributeError) as exc:
+        raise RuntimeError('Initialize pinned guards visibility query before capture.') from exc
+    ask = getattr(module, 'query_github_visibility', None)
+    if not callable(ask):
+        raise RuntimeError('Guards dependency lacks the account-independent visibility API')
+    try:
+        visibility = ask(identity)
+    except module.GitError as exc:
+        raise RuntimeError('Cannot verify private artifacts: no gh credential can see the companion') from exc
+    return 'true' if visibility == 'PRIVATE' else 'false'
+
+
 def authorize_capture_artifact(requested):
     """Admit only this producer's concrete capture leaves, preserving lexical paths."""
     path = Path(requested).expanduser().absolute()
@@ -174,8 +198,7 @@ def _verify_repository(repo):
                 identities.add(_repository(url))
     for identity in sorted(identities):
         _verify_https_environment()
-        private = _run(['gh', 'api', '--hostname', 'github.com', 'repos/' + identity, '--jq', '.private'])
-        if private.strip() != 'true':
+        if _github_private(identity) != 'true':
             raise RuntimeError('Artifact repository is PUBLIC or visibility is unknown; refusing capture.')
 
 

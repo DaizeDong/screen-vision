@@ -23,6 +23,10 @@ def test_visibility_is_required_for_versioned_output(tmp_path, monkeypatch, visi
             return SimpleNamespace(returncode=0, stdout='remote.origin.url\nhttps://github.com/example-owner/screen-vision-config.git\0')
         pytest.fail('unexpected external command')
     monkeypatch.setattr(artifact_store.subprocess, 'run', run)
+    # The live answer itself comes from the guards kit (test_visibility_any_gh_account.py); here the
+    # stubbed process seam keeps answering it in the legacy `gh api ... --jq .private` shape.
+    monkeypatch.setattr(artifact_store, '_github_private', lambda identity: artifact_store._run(
+        ['gh', 'api', '--hostname', 'github.com', 'repos/' + identity, '--jq', '.private']).strip())
     # Route-only controls; test_artifact_admission exercises the native write gate.
     monkeypatch.setattr(artifact_store, 'authorize_capture_artifact', lambda path: Path(path))
     if visibility == 'true':

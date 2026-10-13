@@ -8,6 +8,7 @@ time by the hooks and CI.
 """
 import os
 import importlib.util
+from functools import lru_cache
 from pathlib import Path
 import sys
 import uuid
@@ -20,8 +21,9 @@ ARTIFACT_NAMES = frozenset({
 })
 
 
-def _no_links(path, *, allow_missing=False):
-    """Refuse a symlink or junction anywhere on the lexical path (pinned guards helper)."""
+@lru_cache(maxsize=None)
+def _path_rules():
+    """The pinned guards storage_contract module, loaded once per process."""
     module_path = TOOL_ROOT / 'guards/tools/storage_contract.py'
     try:
         spec = importlib.util.spec_from_file_location('screen_capture_path_rules', module_path)
@@ -30,6 +32,12 @@ def _no_links(path, *, allow_missing=False):
         spec.loader.exec_module(module)
     except (OSError, ImportError, AttributeError) as exc:
         raise RuntimeError('Initialize the pinned guards submodule before capture.') from exc
+    return module
+
+
+def _no_links(path, *, allow_missing=False):
+    """Refuse a symlink or junction anywhere on the lexical path (pinned guards helper)."""
+    module = _path_rules()
     try:
         return module.no_links(path, allow_missing=allow_missing)
     except ValueError as exc:
@@ -85,12 +93,16 @@ def _data_base():
     return base
 
 
-def authorize_capture_artifact(requested):
-    """Admit only this producer's declared capture leaves. Path-only; preserves lexical paths."""
+def authorize_capture_artifact(requested, base=None):
+    """Admit only this producer's declared capture leaves. Path-only; preserves lexical paths.
+
+    `base` is the data directory a caller already checked with `_data_base()`; without it the
+    base is checked here.
+    """
     path = Path(requested).expanduser().absolute()
     if path.name not in ARTIFACT_NAMES:
         raise RuntimeError('Undeclared capture artifact filename.')
-    base = _data_base()
+    base = base or _data_base()
     if _reserved(path):
         raise RuntimeError('Artifact path contains reserved or ambiguous components.')
     if path.parent.parent != base / 'captures':
@@ -116,5 +128,5 @@ def artifact_directory(requested=''):
     if os.path.lexists(candidate):
         raise RuntimeError('Capture output directory already exists; choose a new output directory.')
     for name in ('screen.png', 'capture.json', 'elements.json', 'capture.json.tmp', 'elements.json.tmp'):
-        authorize_capture_artifact(candidate / name)
+        authorize_capture_artifact(candidate / name, base)
     return candidate

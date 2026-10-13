@@ -41,6 +41,29 @@ def _reserved(path):
                for part in Path(path).parts[1:])
 
 
+def _strip_verbatim(text):
+    r"""Drop a leading \\?\ (or \\?\UNC\) prefix; no further alias handling is attempted."""
+    if text[:8].upper() == '\\\\?\\UNC\\':
+        return '\\\\' + text[8:]
+    if text.startswith('\\\\?\\'):
+        return text[4:]
+    return text
+
+
+def _canonical(path):
+    """Resolved, case-normalised form, so 8.3 short names and '..' forms compare as their target."""
+    resolved = _strip_verbatim(os.path.realpath(_strip_verbatim(os.fspath(path))))
+    return Path(os.path.normcase(resolved))
+
+
+def _overlaps_tool_root(base):
+    """True when base and the tool tree contain one another, lexically or after resolution."""
+    if base.is_relative_to(TOOL_ROOT) or TOOL_ROOT.is_relative_to(base):
+        return True
+    real_base, real_root = _canonical(base), _canonical(TOOL_ROOT)
+    return real_base.is_relative_to(real_root) or real_root.is_relative_to(real_base)
+
+
 def _data_base():
     """The configured companion data directory; raises with init guidance when missing."""
     data = os.environ.get('SCREEN_VISION_DATA_DIR')
@@ -57,7 +80,7 @@ def _data_base():
         raise RuntimeError('Artifact path contains reserved or ambiguous components.')
     if base.name != 'data':
         raise RuntimeError('Capture storage must use the companion data/ directory declared by the tool.')
-    if base.is_relative_to(TOOL_ROOT) or TOOL_ROOT.is_relative_to(base):
+    if _overlaps_tool_root(base):
         raise RuntimeError('Artifacts must be outside the tool worktree.')
     return base
 

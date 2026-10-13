@@ -78,3 +78,69 @@ def test_data_directory_must_be_named_data(private_capture, monkeypatch):
     with pytest.raises(RuntimeError, match='data/'):
         artifact_store.artifact_directory('captures/acme')
     assert list(other.iterdir()) == []
+
+
+def _tool_with_data(tmp_path, monkeypatch, name='toolrootlongname'):
+    source = tmp_path / name
+    inside = source / 'data'
+    inside.mkdir(parents=True)
+    monkeypatch.setattr(artifact_store, 'TOOL_ROOT', source.resolve())
+    monkeypatch.setattr(artifact_store, '_no_links', lambda path, **kwargs: path)
+    return source, inside
+
+
+def _short_name(path):
+    if os.name != 'nt':
+        return None
+    import ctypes
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
+    if not length or length >= len(buffer):
+        return None
+    short = buffer.value
+    return short if Path(short).name.lower() != Path(path).name.lower() else None
+
+
+def _assert_refused(alias, inside, monkeypatch):
+    monkeypatch.setitem(os.environ, 'SCREEN_VISION_DATA_DIR', str(alias))
+    with pytest.raises(RuntimeError, match='outside the tool'):
+        artifact_store.artifact_directory('captures/acme')
+    assert list(inside.iterdir()) == []
+
+
+def test_short_name_alias_of_tool_tree_is_refused(private_capture, tmp_path, monkeypatch):
+    source, inside = _tool_with_data(tmp_path, monkeypatch)
+    short = _short_name(source)
+    if short is None:
+        pytest.skip('8.3 short names are not available on this filesystem')
+    alias = Path(short) / 'data'
+    assert not alias.absolute().is_relative_to(artifact_store.TOOL_ROOT)  # lexical check alone misses it
+    _assert_refused(alias, inside, monkeypatch)
+
+
+def test_dotdot_alias_of_tool_tree_is_refused(private_capture, tmp_path, monkeypatch):
+    source, inside = _tool_with_data(tmp_path, monkeypatch)
+    (tmp_path / 'elsewhere').mkdir()
+    alias = tmp_path / 'elsewhere' / '..' / source.name / 'data'
+    assert not alias.absolute().is_relative_to(artifact_store.TOOL_ROOT)
+    # The overlap comparison itself must see through '..', not only the reserved-component check.
+    assert artifact_store._overlaps_tool_root(alias.absolute())
+    monkeypatch.setitem(os.environ, 'SCREEN_VISION_DATA_DIR', str(alias))
+    with pytest.raises(RuntimeError):
+        artifact_store.artifact_directory('captures/acme')
+    assert list(inside.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='verbatim prefix is Windows-only')
+def test_verbatim_prefix_alias_of_tool_tree_is_refused(private_capture, tmp_path, monkeypatch):
+    _, inside = _tool_with_data(tmp_path, monkeypatch)
+    alias = '\\\\?\\' + str(inside.resolve())
+    assert not Path(alias).is_relative_to(artifact_store.TOOL_ROOT)
+    _assert_refused(alias, inside, monkeypatch)
+
+
+def test_verbatim_prefix_is_stripped():
+    assert artifact_store._strip_verbatim(r'\\?\C:\x\data') == r'C:\x\data'
+    assert artifact_store._strip_verbatim(r'\\?\UNC\host\share\data') == r'\\host\share\data'
+    assert artifact_store._strip_verbatim(r'\\?\unc\host\share\data') == r'\\host\share\data'
+    assert artifact_store._strip_verbatim(r'C:\x\data') == r'C:\x\data'

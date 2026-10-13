@@ -510,7 +510,7 @@ def capture_main():
         os.makedirs(out_dir, exist_ok=False)
     except (RuntimeError, OSError) as exc:
         print(json.dumps({"ok": False, "error": "artifact_store_unavailable", "detail": str(exc),
-                          "next_step": "Configure and verify the private companion before capture."}))
+                          "next_step": "Configure the private companion (see DATA.md) before capture."}))
         return 2
 
     if C.is_wayland():

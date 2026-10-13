@@ -6,8 +6,7 @@ Current: **v0.1.1**
 - Windows-first hybrid pipeline: DPI-aware capture (mss / pure-ctypes GDI fallback) →
   UIA element tree → OCR (winocr / rapidocr) → IoU fusion → Set-of-Mark PNG + element JSON.
 - `capture.py` (read-only), `click.py` (opt-in, dry-run-first, UIA-Invoke-preferred), `probe.py`.
-- Windows GDI capture and PNG writing use stdlib. Private output verification requires Git and
-  authenticated gh; verified actions also require Windows UIA.
+- Windows GDI capture and PNG writing use stdlib; verified actions also require Windows UIA.
 - Region OCR subtracts named UIA Text rectangles, crops to the uncovered bounds, and masks
   covered pixels. Full text coverage skips OCR. Capture retries a black frame at most once.
 - `tests/run_gate.py` defaults to PNG, effective DPI-contract, IoU, and synthetic OCR checks.

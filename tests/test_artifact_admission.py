@@ -1,4 +1,4 @@
-"""Native source artifact admission, without reading any desktop or real payload."""
+"""Path-only capture admission, without reading any desktop or real payload."""
 import os
 import json
 import subprocess
@@ -15,31 +15,24 @@ from make_fixtures import build_versioned_capture_storage
 def private_capture(tmp_path, monkeypatch):
     repo, data, environment = build_versioned_capture_storage(tmp_path)
     monkeypatch.setattr(os, 'environ', environment)
-    # Only the legacy live gh layer is stubbed; shared local proof stays native.
-    monkeypatch.setattr(artifact_store, '_verify_repository', lambda root: None)
     return repo, data
 
 
-@pytest.mark.parametrize('ignored', ['screen.png', 'capture.json', 'elements.json'])
-def test_ignored_capture_leaf_refuses_before_directory_creation(private_capture, ignored):
-    repo, data = private_capture
-    (repo / '.gitignore').write_text('data/captures/*/' + ignored + '\n', encoding='utf-8')
-    with pytest.raises(RuntimeError, match='ignored'):
-        artifact_store.artifact_directory('captures/acme')
+def test_admission_runs_no_git_or_gh(private_capture, monkeypatch):
+    _, data = private_capture
+
+    def no_process(*args, **kwargs):
+        raise AssertionError('capture admission must not run Git or gh')
+
+    monkeypatch.setattr(subprocess, 'run', no_process)
+    monkeypatch.setattr(subprocess, 'check_output', no_process)
+    directory = artifact_store.artifact_directory('captures/acme')
+    assert directory == data / 'captures' / 'acme'
     assert not (data / 'captures').exists()
 
 
-def test_unborn_companion_refuses_before_capture(private_capture):
-    repo, data = private_capture
-    subprocess.run(['git', '-C', str(repo), 'update-ref', '-d', 'HEAD'], check=True)
-    with pytest.raises(RuntimeError):
-        artifact_store.artifact_directory('captures/acme')
-    assert not (data / 'captures').exists()
-
-
-def test_json_staging_uses_explicit_transient_owner(private_capture):
-    repo, data = private_capture
-    (repo / '.gitignore').write_text('*.tmp\n', encoding='utf-8')
+def test_json_staging_writes_complete_manifest(private_capture):
+    _, data = private_capture
     directory = artifact_store.artifact_directory('captures/acme')
     directory.mkdir(parents=True)
     target = directory / 'capture.json'
@@ -48,45 +41,40 @@ def test_json_staging_uses_explicit_transient_owner(private_capture):
     assert not target.with_suffix('.json.tmp').exists()
 
 
-def test_leaf_refusal_does_not_call_writer(private_capture):
-    repo, data = private_capture
-    (repo / '.gitignore').write_text('data/captures/*/screen.png\n', encoding='utf-8')
+@pytest.mark.parametrize('leaf', ['undeclared.png', 'screen.png.bak'])
+def test_undeclared_leaf_does_not_call_writer(private_capture, leaf):
+    _, data = private_capture
     with pytest.raises(capture.ArtifactWriteError):
-        capture.persist_artifact(str(data / 'captures/acme/screen.png'),
+        capture.persist_artifact(str(data / 'captures/acme' / leaf),
                                  lambda: pytest.fail('refused output reached writer'))
 
 
-@pytest.mark.parametrize('policy', ['missing', 'retired', 'undeclared'])
-def test_source_contract_refusal_precedes_capture(private_capture, tmp_path, monkeypatch, policy):
+@pytest.mark.parametrize('relative', ['screen.png', 'captures/screen.png', 'captures/a/b/screen.png',
+                                      'captures/.git/screen.png'])
+def test_leaf_outside_one_capture_directory_is_refused(private_capture, relative):
     _, data = private_capture
-    storage = artifact_store._storage_module()
-    source = tmp_path / 'source'
-    source.mkdir()
-    contract = json.loads((artifact_store.TOOL_ROOT / 'storage.contract.json').read_text(encoding='utf-8'))
-    if policy == 'retired':
-        next(row for row in contract['artifacts'] if row['artifact_id'] == 'capture_frames')['retention_rule']['class'] = 'retired'
-    elif policy == 'undeclared':
-        contract['artifacts'] = [row for row in contract['artifacts'] if row['artifact_id'] != 'capture_frames']
-    if policy != 'missing':
-        (source / 'storage.contract.json').write_text(json.dumps(contract), encoding='utf-8')
+    with pytest.raises(capture.ArtifactWriteError):
+        capture.persist_artifact(str(data / relative),
+                                 lambda: pytest.fail('refused output reached writer'))
+
+
+def test_data_directory_inside_tool_worktree_is_refused(private_capture, tmp_path, monkeypatch):
+    source = tmp_path / 'tool'
+    inside = source / 'data'
+    inside.mkdir(parents=True)
     monkeypatch.setattr(artifact_store, 'TOOL_ROOT', source)
-    monkeypatch.setattr(artifact_store, '_storage_module', lambda: storage)
-    with pytest.raises(RuntimeError):
+    monkeypatch.setitem(os.environ, 'SCREEN_VISION_DATA_DIR', str(inside))
+    monkeypatch.setattr(artifact_store, '_no_links', lambda path, **kwargs: path)
+    with pytest.raises(RuntimeError, match='outside the tool'):
         artifact_store.artifact_directory('captures/acme')
-    assert not (data / 'captures').exists()
+    assert list(inside.iterdir()) == []
 
 
-def test_promotion_rechecks_durable_destination(private_capture, monkeypatch):
-    repo, data = private_capture
-    directory = artifact_store.artifact_directory('captures/acme')
-    directory.mkdir(parents=True)
-    target = directory / 'capture.json'
-    original = json.dump
-    def write_and_change_policy(*args, **kwargs):
-        original(*args, **kwargs)
-        (repo / '.gitignore').write_text('data/captures/*/capture.json\n', encoding='utf-8')
-    monkeypatch.setattr(capture.json, 'dump', write_and_change_policy)
-    with pytest.raises(capture.ArtifactWriteError, match='ignored'):
-        capture.write_json_artifact(str(target), {'synthetic': True})
-    assert not target.exists()
-    assert Path(str(target) + '.tmp').is_file()
+def test_data_directory_must_be_named_data(private_capture, monkeypatch):
+    repo, _ = private_capture
+    other = repo / 'exports'
+    other.mkdir()
+    monkeypatch.setitem(os.environ, 'SCREEN_VISION_DATA_DIR', str(other))
+    with pytest.raises(RuntimeError, match='data/'):
+        artifact_store.artifact_directory('captures/acme')
+    assert list(other.iterdir()) == []

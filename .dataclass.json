@@ -15,7 +15,7 @@
     "",
     "Enforced by tools/data_boundary.py in .githooks and in CI."
   ],
-  "_audited": "Capture output consists of screenshots, UIA/OCR observations and a capture manifest. Writes require an explicitly configured data directory inside a separately verified PRIVATE companion repository; public, unknown, own-worktree and escaping paths fail before capture. The sealed root filenames also prevent restoring former repository-relative output. The cropped/masked OCR input also stays inside that verified private output directory.",
+  "_audited": "Capture output consists of screenshots, UIA/OCR observations and a capture manifest. Writes require an explicitly configured, existing data directory outside this worktree; own-worktree, undeclared and escaping paths fail before capture (path-only; commit and push hooks keep DATA out of public repositories). The sealed root filenames also prevent restoring former repository-relative output. The cropped/masked OCR input also stays inside that private output directory.",
   "data": [],
   "data_sealed": [
     "screen.png",
@@ -29,5 +29,5 @@
     "tests/test_review_v18.py",
     "tests/test_review_v19.py"
   ],
-  "_data_home": "SCREEN_VISION_DATA_DIR, or data/ under SCREEN_VISION_CONFIG; verified PRIVATE versioned companion required."
+  "_data_home": "SCREEN_VISION_DATA_DIR, or data/ under SCREEN_VISION_CONFIG; existing private versioned companion required."
 }

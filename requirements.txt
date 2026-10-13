@@ -1,7 +1,6 @@
 # screen-vision Python packages for additional capabilities.
 # Windows GDI capture and PNG writing use the Python standard library.
-# Confirmed actions require uiautomation on Windows. Saving captures also requires
-# Git and authenticated gh to verify a PRIVATE companion repository.
+# Confirmed actions require uiautomation on Windows.
 # Install the packages below for the capabilities you need.
 
 # Recommended core: structured elements + fast/cross-platform capture + annotation

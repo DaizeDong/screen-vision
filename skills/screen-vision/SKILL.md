@@ -66,13 +66,12 @@ Screenshots can capture passwords/tokens. Prefer `--target window:...` or `--tar
 full-screen. Invalid narrow targets return an error before capture. Only the explicit
 `--allow-full-screen-fallback` flag permits scope expansion; `capture.json` records both scopes.
 
-Set `SCREEN_VISION_CONFIG` to an existing PRIVATE companion, or
+Set `SCREEN_VISION_CONFIG` to an existing private companion, or
 `SCREEN_VISION_DATA_DIR` to its exact `data/` directory. Explicit selection uses
-DATA_DIR, CONFIG, then CONFIG_DIR, with no sibling or home fallback. Authenticate
-`gh`; committed HEAD, current route proof and declared versionable output paths
-are required before reading pixels. `--out-dir` must select a new direct child of
+DATA_DIR, CONFIG, then CONFIG_DIR, with no sibling or home fallback. Declared
+output paths outside this worktree are required before reading pixels. `--out-dir` must select a new direct child of
 `data/captures/`. Missing storage or annotation write failures are errors.
-[DATA.md](../../DATA.md) defines supported transport, source-owned admission and
+[DATA.md](../../DATA.md) defines output admission and
 inactive JSON staging recovery. Keep the tool uninitialized until storage is needed.
 
 OCR processes a cropped, masked PNG containing only pixels outside named UIA Text rectangles.

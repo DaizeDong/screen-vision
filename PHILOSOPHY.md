@@ -44,6 +44,6 @@ implicitly authorize an input action.
 Missing libraries, mostly black or occluded captures, locked desktops
 (`no_interactive_desktop`) and Wayland restrictions appear in JSON warnings or
 errors. A failed observation must not be reported as an empty screen. The Windows
-capture core uses the standard library; PRIVATE destination proof and verified
-actions have additional prerequisites. Missing prerequisites stop the affected
+capture core uses the standard library; verified actions have additional
+prerequisites. Missing prerequisites stop the affected
 operation with a reason.

@@ -130,33 +130,14 @@ def action_movement_test_source():
 
 
 def build_versioned_capture_storage(root):
-    """Generate a synthetic PRIVATE companion and current local proof receipt."""
-    from datetime import datetime, timezone
+    """Generate a synthetic companion data directory; writes need only a path outside the tool."""
     import os
-    import subprocess
     root = Path(root)
-    repo, home = root / 'companion', root / 'home'
-    home.mkdir()
+    repo = root / 'companion'
+    data = repo / 'data'
+    data.mkdir(parents=True)
     environment = {key: value for key, value in os.environ.items()
                    if key.upper() in {'PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP'}}
-    environment.update(HOME=str(home), USERPROFILE=str(home))
-    setup = dict(environment, GIT_AUTHOR_NAME='Synthetic User', GIT_AUTHOR_EMAIL='user1@example.com',
-                 GIT_COMMITTER_NAME='Synthetic User', GIT_COMMITTER_EMAIL='user1@example.com')
-    def git(*arguments, input=None):
-        result = subprocess.run(['git', *arguments], cwd=repo if repo.exists() else root,
-                                env=setup, input=input, capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    git('init', '--template=', str(repo))
-    identity = 'example/screen-vision-config'
-    git('config', 'remote.origin.url', 'https://github.com/' + identity + '.git')
-    tree = git('hash-object', '-t', 'tree', '-w', '--stdin', input='')
-    git('update-ref', 'HEAD', git('commit-tree', tree, '-m', 'Synthetic empty companion'))
-    receipt = home / '.pii-guard/visibility.json'
-    receipt.parent.mkdir()
-    receipt.write_text(json.dumps({'_refreshed': datetime.now(timezone.utc).isoformat(),
-                                   identity: 'PRIVATE'}), encoding='utf-8')
-    data = repo / 'data'
-    data.mkdir()
     environment['SCREEN_VISION_DATA_DIR'] = str(data)
     return repo, data, environment
 
@@ -189,78 +170,6 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
-
-
-def transport_cases():
-    """Generate only fictional repository identities, routes, and settings."""
-    origin = 'https://github.com/example-owner/screen-vision-config.git'
-    cases = [
-        {'id': 'canonical', 'allow': True},
-        {'id': 'pager', 'env': {'GIT_PAGER': 'cat'}, 'allow': True},
-        {'id': 'pager-commands', 'env': {'GIT_PAGER': 'synthetic-unavailable-pager',
-                                      'GH_PAGER': 'synthetic-unavailable-pager',
-                                      'PAGER': 'synthetic-unavailable-pager'}, 'allow': True},
-        {'id': 'canonical-port', 'origin': origin.replace('github.com/', 'github.com:443/'), 'allow': True},
-        {'id': 'nonstandard-port', 'origin': origin.replace('github.com/', 'github.com:8443/')},
-        {'id': 'ssh-port', 'origin': 'ssh://git@github.com:2222/example-owner/screen-vision-config.git'},
-        {'id': 'ssh-unproved', 'origin': 'git@github.com:example-owner/screen-vision-config.git'},
-        {'id': 'userinfo', 'origin': origin.replace('github.com', 'git@github.com')},
-        {'id': 'host', 'origin': origin.replace('github.com', 'example.invalid')},
-        {'id': 'public-push', 'extra': [('remote.origin.pushurl', 'https://github.com/example-owner/public-output.git')], 'push': ['https://github.com/example-owner/public-output.git'], 'private': 'false'},
-        {'id': 'effective-push', 'push': ['https://example.invalid/example-owner/screen-vision-config.git']},
-        {'id': 'effective-fetch', 'fetch': ['https://example.invalid/example-owner/screen-vision-config.git']},
-        {'id': 'visibility-public', 'private': 'false'},
-        {'id': 'visibility-unknown', 'private': ''},
-        {'id': 'extra-remote', 'extra': [('remote.archive.url', 'https://example.invalid/acme/archive.git')]},
-    ]
-    for key, value in [
-        ('url.https://example.invalid/.insteadof', 'https://github.com/'),
-        ('url.https://example.invalid/.pushinsteadof', 'https://github.com/'),
-        ('core.sshcommand', 'synthetic-command'),
-        ('core.gitproxy', 'synthetic-command'),
-        ('remote.origin.receivepack', 'synthetic-command'),
-        ('remote.origin.uploadpack', 'synthetic-command'),
-        ('remote.origin.vcs', 'synthetic-helper'),
-        ('http.proxy', 'https://example.invalid'),
-        ('http.sslverify', 'false'),
-        ('http.https://github.com/.sslverify', 'false'),
-        ('http.sslcainfo', 'synthetic-ca'),
-        ('http.followredirects', 'true'),
-        ('http.extraheader', 'synthetic-header'),
-        ('http.https://github.com/.proxy', ''),
-        ('remote.origin.proxy', ''),
-    ]:
-        cases.append({'id': 'config-' + key, 'extra': [(key, value)]})
-    cases.append({'id': 'duplicate-http', 'extra': [('http.sslverify', 'false'), ('http.sslverify', 'true')]})
-    for key in ['HTTP_PROXY', 'https_proxy', 'ALL_PROXY', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
-                'CURL_CA_BUNDLE', 'CURL_SSL_BACKEND', 'GIT_SSL_NO_VERIFY',
-                'GIT_PROXY_SSL_CAINFO', 'GIT_EXEC_PATH', 'GIT_HTTP_USER_AGENT',
-                'GIT_SSH_COMMAND', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_GLOBAL',
-                'GIT_DIR', 'GIT_WORK_TREE', 'GH_HOST', 'GH_CONFIG_DIR']:
-        for value in ['', 'synthetic-value']:
-            cases.append({'id': 'env-' + key + ('-empty' if not value else ''), 'env': {key: value}})
-    for key in ['version', 'maxrequests', 'minsessions', 'postbuffer', 'lowspeedlimit',
-                'lowspeedtime', 'keepaliveidle', 'keepaliveinterval', 'keepalivecount']:
-        cases.append({'id': 'performance-' + key, 'extra': [('http.' + key, '1')], 'allow': True})
-    for value in ['true', 'yes', 'on', '1', ' TRUE ']:
-        cases.append({'id': 'verify-' + value.strip(), 'extra': [('http.https://github.com/.sslverify', value)], 'allow': True})
-    cases.append({'id': 'no-proxy-only', 'env': {'NO_PROXY': 'github.com'}, 'allow': True})
-    for key in ['remote.pushdefault', 'branch.main.remote', 'branch.main.pushremote']:
-        cases.append({'id': 'selector-good-' + key, 'extra': [(key, 'origin')], 'allow': True})
-        cases.append({'id': 'selector-url-' + key,
-                      'extra': [(key, 'https://example.invalid/acme/output.git')]})
-        cases.append({'id': 'selector-unknown-' + key, 'extra': [(key, 'unconfigured')]})
-        cases.append({'id': 'selector-local-' + key, 'extra': [(key, '.')]})
-    for case in cases:
-        case.setdefault('origin', origin)
-        case.setdefault('extra', [])
-        case.setdefault('fetch', [case['origin']])
-        case.setdefault('push', [case['origin']])
-        case.setdefault('private', 'true')
-        case.setdefault('env', {})
-        case['env'].setdefault('GIT_PAGER', 'cat')
-        case.setdefault('allow', False)
-    return cases
 
 
 def screen_scene(kind='container', origin=(0, 0)):

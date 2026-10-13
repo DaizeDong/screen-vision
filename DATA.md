@@ -6,7 +6,7 @@ remains authoritative for capture fields, action validation, and error receipts.
 
 ## Storage selection and admission
 
-Set `SCREEN_VISION_CONFIG` to an existing separate PRIVATE companion clone with
+Set `SCREEN_VISION_CONFIG` to an existing separate private companion clone with
 an existing `data/` directory, or `SCREEN_VISION_DATA_DIR` to that exact directory.
 Discovery is explicit-only: `SCREEN_VISION_DATA_DIR` takes precedence over
 `SCREEN_VISION_CONFIG`, then `SCREEN_VISION_CONFIG_DIR`.
@@ -14,20 +14,16 @@ There is no sibling or home fallback. Clear inherited DATA_DIR before switching
 CONFIG. These selectors choose storage, not a settings registry. Missing
 configuration fails before capture; installation can remain uninitialized.
 
-Clone with `git clone https://github.com/OWNER/REPOSITORY.git` and authenticate
-`gh` with access to the companion. Capture verifies every configured and effective
-fetch/push destination before reading pixels. Only canonical GitHub HTTPS routes
-on the default port or 443 are admitted. SSH, URL rewrites, transport overrides,
-proxies and alternate TLS trust settings are refused. `GIT_PAGER`, `GH_PAGER` and
-`PAGER` are accepted but removed from captured subprocess environments.
-
-Each PNG, JSON and exact JSON staging filename binds to a source artifact ID.
-Mandatory outputs are admitted before capture; selected OCR and annotation outputs
-are checked before collection. Admission requires committed HEAD, current complete-route
-PRIVATE proof and effective ignore checks. Missing or retired declarations and
-ignored durable artifacts refuse capture. Only the two declared JSON staging
-artifacts are transient. JSON publication rechecks staging and final destinations
-before replacement; annotation storage failures remain errors.
+Admission is path-only: no Git or GitHub call runs at capture time, and keeping
+DATA out of public repositories is enforced by the commit and push hooks. The
+selected directory must exist, be named `data`, and sit outside this tool's
+worktree. Each PNG, JSON and exact JSON staging filename must be a declared leaf
+in one new directory directly beneath `data/captures/`, with no `.git` component
+and no symlink or junction on its path. Mandatory outputs are admitted before
+capture; selected OCR and annotation outputs are checked before collection. Only
+the two declared JSON staging artifacts are transient. JSON publication rechecks
+staging and final destinations before replacement; annotation storage failures
+remain errors.
 
 Real screenshots and UI observations belong only in the PRIVATE companion and its
 version history.

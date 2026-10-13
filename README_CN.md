@@ -23,7 +23,7 @@ Windows UI Automation 会为参与无障碍接口的控件提供名称、状态�
 再在执行动作前重新查找保存的 UIA 身份。布局变化或截图过期后，可能需要重新截图。
 拒绝过期目标，可以避免将动作施加到另一个控件。
 
-截图和动作使用独立命令。屏幕像素可能包含个人信息，因此截图前先验证 PRIVATE 输出位置；
+截图和动作使用独立命令。屏幕像素可能包含个人信息，因此截图前先检查输出位置是已配置的私有伴生仓；
 动作默认只预览，需显式确认才执行。合成检查验证这些判断，真实输入、显示器缩放和平台权限
 仍需单独进行桌面验收。
 
@@ -40,7 +40,7 @@ Windows UI Automation 会为参与无障碍接口的控件提供名称、状态�
 适用于桌面、原生、Win32、WinUI、Electron、游戏和远程桌面窗口。
 网页 DOM 访问使用 Playwright，图像生成或编辑使用相应图像工具。
 
-Windows 的 GDI 截图和 PNG 写出使用标准库。实际点击还需要 `uiautomation` 验证最新的控件身份；WinOCR 读取图像需要同时安装 winocr 和 Pillow，OCR 也可使用 RapidOCR；标注另需 Pillow。截图前还需要 Git 和已登录的 `gh` 验证私有输出仓。
+Windows 的 GDI 截图和 PNG 写出使用标准库。实际点击还需要 `uiautomation` 验证最新的控件身份；WinOCR 读取图像需要同时安装 winocr 和 Pillow，OCR 也可使用 RapidOCR；标注另需 Pillow。
 
 ## 安装
 
@@ -65,14 +65,14 @@ pip install rapidocr-onnxruntime               # OCR(跨平台)
 
 ## 配置
 
-将 `SCREEN_VISION_CONFIG` 指向已有的 PRIVATE 伴生仓，或用
-`SCREEN_VISION_DATA_DIR` 指定其中准确的 `data/` 目录，并登录 `gh`。
+将 `SCREEN_VISION_CONFIG` 指向已有的私有伴生仓，或用
+`SCREEN_VISION_DATA_DIR` 指定其中准确的 `data/` 目录。
 存储只按显式设置查找：DATA_DIR、CONFIG、CONFIG_DIR；切换 CONFIG 前清除继承的
 DATA_DIR。安装后可以保持未初始化。
 
-截图需要伴生仓已有提交、当前 PRIVATE 路由证明，以及已声明且可纳入 Git 管理的
-产物路径。每次运行使用 `data/captures/` 的一个新建直接子目录。
-[DATA.md](DATA.md) 规定初始化、传输限制、产物写入检查和 JSON 暂存失败后的恢复。
+截图只检查路径：数据目录须存在且位于工具仓之外，每个产物须是已声明的文件名。
+每次运行使用 `data/captures/` 的一个新建直接子目录。
+[DATA.md](DATA.md) 规定初始化、产物写入检查和 JSON 暂存失败后的恢复。
 
 ## 快速开始
 

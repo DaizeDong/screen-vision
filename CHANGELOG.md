@@ -4,6 +4,9 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
+### Removed
+- Runtime PRIVATE proof. `artifact_store` no longer runs `git config`/`remote`/`rev-parse`, the gh visibility query (guards `query_github_visibility`), the HTTPS transport/route checks or `storage_contract.authorize_artifact_write` admission (committed HEAD, ignore checks, source artifact IDs). Capture admission is path-only: an existing `data/` directory outside this worktree, declared leaf names in one new directory beneath `data/captures/`, and no `.git` component, symlink or junction. Unconfigured or missing storage still fails before capture with init guidance; no in-repo fallback. Saving captures no longer needs Git or `gh`. Proof-only tests (`test_visibility_any_gh_account.py`, the route-proof matrix in `test_review_v6.py`, visibility/ignore/unborn/contract-retirement cases) and the `transport_cases` generator are deleted; the remaining storage tests assert path-only behaviour. Commit and push gates are unchanged.
+
 ### Fixed
 - The live PRIVATE visibility check no longer depends on which gh account is active: it asks through the pinned guards kit's `query_github_visibility`, which tries the owner's stored account, every other stored account, then gh's default, and never switches the active account. Before, an active account that could not see the companion made every proof fail closed. Only PRIVATE is accepted.
 

@@ -1,5 +1,5 @@
 
-"""Generated offline controls for private routes, OCR execution, and desktop readiness."""
+"""Generated offline controls for OCR execution and desktop readiness."""
 import json
 import os
 from pathlib import Path
@@ -13,56 +13,8 @@ sys.path.insert(0, str(ROOT / 'skills/screen-vision/scripts'))
 sys.path.insert(0, str(ROOT / 'tools'))
 import artifact_store
 import capture
-from make_fixtures import screen_scene, transport_cases
+from make_fixtures import screen_scene
 from test_win32_safety import core, probe, library
-
-
-@pytest.mark.parametrize('case', transport_cases(), ids=lambda case: case['id'])
-def test_private_route_proof_precedes_capture(case, tmp_path, monkeypatch):
-    repo = tmp_path / 'acme-companion'
-    data = repo / 'data'
-    data.mkdir(parents=True)
-    monkeypatch.setenv('SCREEN_VISION_DATA_DIR', str(data))
-    for key, value in case['env'].items():
-        monkeypatch.setenv(key, value)
-    calls = []
-    entries = [('remote.origin.url', case['origin'])] + case['extra']
-    def run(args, **kwargs):
-        calls.append((args, kwargs))
-        if args[0] == 'gh':
-            value = case['private']
-        elif args[0] == 'ssh':
-            value = 'hostname github.com\nport 22\nuser git\n'
-        elif 'rev-parse' in args:
-            value = str(repo)
-        elif 'remote' in args:
-            value = '\n'.join(case['push'] if '--push' in args else case['fetch'])
-        elif '--get' in args:
-            value = case['origin']
-        elif 'config' in args:
-            value = ''.join(key + '\n' + value + '\0' for key, value in entries)
-        else:
-            pytest.fail('unexpected command')
-        return SimpleNamespace(returncode=0, stdout=value)
-    monkeypatch.setattr(artifact_store.subprocess, 'run', run)
-    # The live answer itself comes from the guards kit (test_visibility_any_gh_account.py); here the
-    # stubbed process seam keeps answering it in the legacy `gh api ... --jq .private` shape.
-    monkeypatch.setattr(artifact_store, '_github_private', lambda identity: artifact_store._run(
-        ['gh', 'api', '--hostname', 'github.com', 'repos/' + identity, '--jq', '.private']).strip())
-    monkeypatch.setattr(artifact_store, 'authorize_capture_artifact', lambda path: Path(path))
-    if case['allow']:
-        assert artifact_store.artifact_directory('captures/acme') == data / 'captures/acme'
-        assert any(args[0] == 'gh' for args, kw in calls)
-        assert all(kw.get('env', {}).get('GIT_OPTIONAL_LOCKS') == '0'
-                   for args, kw in calls if args[0] == 'git')
-        assert all(not {'GIT_PAGER', 'GH_PAGER', 'PAGER'} & kw['env'].keys()
-                   for args, kw in calls)
-        assert all(os.environ[key] == value for key, value in case['env'].items())
-    else:
-        with pytest.raises(RuntimeError):
-            artifact_store.artifact_directory('captures/acme')
-    assert not (data / 'captures').exists()
-    assert not any(args[0] == 'ssh' for args, kw in calls)
 
 
 def capture_scene(scene, engine, tmp_path, monkeypatch, capsys):

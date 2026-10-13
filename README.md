@@ -25,7 +25,7 @@ records the owning process and window, and re-resolves the saved UIA identity be
 This can require a new capture after a layout change or after the capture expires. Refusing a
 stale target is preferable to applying an action to a different control.
 
-Capture and action are separate commands. Capture first verifies a PRIVATE destination because
+Capture and action are separate commands. Capture first checks that its destination is the configured private companion because
 screen pixels can contain personal data; action defaults to a dry run and needs explicit confirmation.
 Synthetic checks exercise those decisions. Native input, monitor scaling and platform permissions
 require their own desktop acceptance.
@@ -50,7 +50,6 @@ editing.
 Windows capture has a stdlib GDI/PNG path. Verified actions require fresh Windows UIA identity
 through `uiautomation`. WinOCR image OCR requires both `winocr` and `Pillow`; RapidOCR is the
 alternative OCR path. `Pillow` also provides annotation.
-Capture also needs Git and the authenticated GitHub CLI to verify its private artifact destination.
 
 ## Install
 
@@ -74,15 +73,15 @@ pip install rapidocr-onnxruntime               # OCR (cross-platform)
 
 ## Config
 
-Select an existing PRIVATE companion with `SCREEN_VISION_CONFIG`, or its exact
-`data/` directory with `SCREEN_VISION_DATA_DIR`, and authenticate `gh`. Storage
+Select an existing private companion with `SCREEN_VISION_CONFIG`, or its exact
+`data/` directory with `SCREEN_VISION_DATA_DIR`. Storage
 selection is explicit-only: DATA_DIR, CONFIG, then CONFIG_DIR. Clear inherited
 DATA_DIR before switching CONFIG. Installation can remain uninitialized.
 
-Capture requires a committed companion, current PRIVATE route proof and declared,
-versionable artifact paths. Each run uses a new directory directly beneath
-`data/captures/`. [DATA.md](DATA.md) defines initialization, transport restrictions,
-source-owned output admission and recovery of failed JSON staging.
+Capture checks paths only: the data directory must exist outside this worktree and
+every artifact must be a declared leaf. Each run uses a new directory directly beneath
+`data/captures/`. [DATA.md](DATA.md) defines initialization, output admission and
+recovery of failed JSON staging.
 
 ## Quick start
 

@@ -135,12 +135,12 @@ an empty monitor list and disabled capture/action capabilities, with exit code 1
 
 ## First capture and safe checks
 
-Configure an existing PRIVATE companion using [DATA.md](../../../DATA.md), which
-defines selector precedence, exact layout, supported transport and output admission.
+Configure an existing private companion using [DATA.md](../../../DATA.md), which
+defines selector precedence, exact layout and output admission.
 `--out-dir` must be a new direct child of `<private-data>/captures`; it cannot reuse
 an existing directory, even if empty. Capture creates the directory exclusively.
-Every capture rechecks configured and effective routes and binds its concrete
-outputs to the source storage contract before reading pixels.
+Every capture checks its concrete output paths (declared leaf names under one new
+`data/captures/` directory) before reading pixels.
 
 Mandatory artifact write failures return nonzero `ok:false`, `error:artifact_write_failed`, the
 intended `artifact` path and the original error detail. Complete JSON is staged before publication;

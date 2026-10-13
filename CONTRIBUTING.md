@@ -23,7 +23,7 @@ synthetic fixture). State which checks ran and distinguish offline results from 
 ## Conventions
 
 - **Coordinates are physical pixels** everywhere; carry `{monitor, scale, origin}` metadata.
-- Real runtime artifacts belong in a verified PRIVATE versioned companion. The public repository
+- Real runtime artifacts belong in a private versioned companion. The public repository
   contains only source and generated synthetic fixtures; gitignore is not a data boundary.
 - New backends are **optional and probed**, the stdlib floor must keep working with zero installs.
 - Keep `SKILL.md` thin; push detail into `skills/screen-vision/reference/*.md`.

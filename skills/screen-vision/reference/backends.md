@@ -16,8 +16,8 @@ pip install rapidocr-onnxruntime   # cross-platform, offline, high accuracy (pul
 
 ```
 
-Windows GDI capture and PNG writing use stdlib, but private artifact validation requires Git and
-authenticated `gh`. Actual clicks require fresh Windows UIA identity via `uiautomation`.
+Windows GDI capture and PNG writing use stdlib. Actual clicks require fresh Windows UIA identity
+via `uiautomation`.
 OCR and annotation report missing backends in `warnings[]`. Non-Windows capture requires MSS.
 WinOCR image input requires Pillow even when annotation is disabled. Importing winocr alone does
 not prove Pillow is available. OCR engine auto selects WinOCR only on Windows when both winocr

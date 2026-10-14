@@ -147,11 +147,6 @@ intended `artifact` path and the original error detail. Complete JSON is staged 
 partial outputs may remain for inspection, but no successful `capture.json` is published on failure.
 `capture.json` preserves resolved scope, timestamp and paths.
 
-`python -m pytest` runs offline checks. Four live desktop-read tests require
-`--interactive-desktop`; this is separate from `python tests/run_gate.py --interactive`, which
-creates one synthetic native window, exercises it and cleans only its own process. The default
-gate is offline. Missing optional capabilities are reported as skipped, never proven.
-
 Atomic JSON writes stage `capture.json.tmp` and `elements.json.tmp` beside their final
 artifacts. Successful replacement consumes staging. Failed writes or replacement may
 leave staging bytes; they do not constitute successful captures. Wait for the writer

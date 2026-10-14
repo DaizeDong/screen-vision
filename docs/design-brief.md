@@ -24,19 +24,6 @@
 - Bundling OmniParser `icon_detect` weights (AGPL-3.0 copyleft) → user-supplied, off by default.
 - Returning an empty list on failure → preserve the unavailable observation as a warning or error.
 
-## Verification gate and evidence boundary
-`tests/run_gate.py` defaults to offline checks: PNG writer validity, the effective Windows DPI
-contract, IoU math, and synthetic-image OCR. Missing optional OCR dependencies produce SKIP.
-
-`--interactive` explicitly enables a newly created, uniquely named owned window. Its capture
-check verifies HWND/process identity before and after capture, retained scope, persisted PNG
-dimensions, and non-black pixels. Every golden and post-action receipt must retain the same
-HWND, PID, process creation time and bounds. The gate checks the display after each invocation
-and stops before any further action when a receipt, element identity or command fails.
-
-The earlier Calculator/8-of-8 description was historical; it is not a current receipt for this
-gate. Offline controls establish decision behavior. Native DPI scaling, capture, UIA and input
-require a separately authorized desktop run; no current native pass is claimed here.
 
 ## Scope
 One job: capture the screen and read/optionally-act on its UI elements, **beyond the browser**.

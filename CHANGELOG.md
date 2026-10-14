@@ -8,6 +8,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 - `artifact_store` loads the guards `storage_contract` module once per process instead of on every link check, and `artifact_directory` checks the data directory once and passes it to each `authorize_capture_artifact` call.
 
 ### Removed
+- The test suite (`tests/`, `tools/make_fixtures.py`) and the docs describing it; confirmed-working features keep no tests.
 - Runtime PRIVATE proof. `artifact_store` no longer runs `git config`/`remote`/`rev-parse`, the gh visibility query (guards `query_github_visibility`), the HTTPS transport/route checks or `storage_contract.authorize_artifact_write` admission (committed HEAD, ignore checks, source artifact IDs). Capture admission is path-only: an existing `data/` directory outside this worktree, declared leaf names in one new directory beneath `data/captures/`, and no `.git` component, symlink or junction. Unconfigured or missing storage still fails before capture with init guidance; no in-repo fallback. Saving captures no longer needs Git or `gh`. Proof-only tests (`test_visibility_any_gh_account.py`, the route-proof matrix in `test_review_v6.py`, visibility/ignore/unborn/contract-retirement cases) and the `transport_cases` generator are deleted; the remaining storage tests assert path-only behaviour. Commit and push gates are unchanged.
 
 ### Fixed

@@ -103,8 +103,7 @@ beyond the browser.*
 ## Capture output and action validation
 
 Each run writes `screen.png`, optional `annotated.png`, `elements.json`, and `capture.json`.
-The manifest records requested and resolved scope, capture time and artifact paths. A generated
-[synthetic element example](tests/fixtures/element.json) shows the current identity fields.
+The manifest records requested and resolved scope, capture time and artifact paths.
 
 A narrow target that is invalid or missing returns an error without a screenshot. Scope expands
 only with `--allow-full-screen-fallback`, and that choice is recorded in the manifest.
@@ -116,15 +115,6 @@ process creation time, element properties and geometry. Captures expire for acti
 Coordinate fallback also checks the current hit target. OCR-only or old records cannot authorize a
 click. `recapture_required` means inspect and capture again; `action_outcome_unknown` means inspect
 the application result before retrying. Dry-run remains the default and does not touch UIA.
-
-## Verification
-
-`python -m pytest` is safe offline by default. The four real desktop-read checks require the explicit
-`--interactive-desktop` option. `python tests/run_gate.py --json` runs offline checks; add
-`--interactive` only when ready to open and act on a dedicated synthetic window. The gate cleans
-only the child process it created. Every action and outcome is checked against that window's
-HWND, PID and process creation time; any failed or mismatched proof stops the gate immediately.
-Skipped checks do not prove desktop capability.
 
 ## Limitations
 

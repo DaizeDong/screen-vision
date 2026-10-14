@@ -92,7 +92,7 @@ python skills/screen-vision/scripts/click.py --elements-json <path> --id 30 --co
 ## 示例输出
 
 每次捕获生成 `screen.png`、可选的 `annotated.png`、`elements.json` 和 `capture.json`。
-清单记录请求范围、实际范围、时间和文件路径；[合成示例](tests/fixtures/element.json)由生成器生成。
+清单记录请求范围、实际范围、时间和文件路径。
 
 目标无效时不会自动截取全屏；只有显式指定 `--allow-full-screen-fallback` 才能扩大范围。
 按标题查找窗口时，所有可见窗口的标题都必须成功读取；枚举不完整、读取失败或标题发生变化都会中止查找。
@@ -100,11 +100,6 @@ python skills/screen-vision/scripts/click.py --elements-json <path> --id 30 --co
 点击仍默认预览。实际动作要求捕获未超过 60 秒，并重新核对进程创建时间、窗口、UIA 运行时身份、
 元素属性和几何位置。坐标兜底也必须通过身份和命中检查。`recapture_required` 表示需重新检查并截图；
 `action_outcome_unknown` 表示动作结果不明，先查看应用状态，再决定是否重试。
-
-默认 `python -m pytest` 和 `python tests/run_gate.py --json` 不读桌面。
-前者的四项桌面读取检查需加 `--interactive-desktop`。
-后者只有加 `--interactive` 才会创建专用测试窗口、执行动作并清理自己创建的进程。
-未运行的桌面检查不代表真实能力已经验收。
 
 ## 局限
 

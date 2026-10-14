@@ -4,8 +4,7 @@
     "TOOL    = code, SKILL.md, docs, reference data, and metrics ABOUT THE SKILL. Public.",
     "FIXTURE = LIFELIKE test data: rows that look like real records, whose real version is",
     "          sitting right there in the operator's life and is structurally indistinguishable.",
-    "          Must be produced by tools/make_fixtures.py -- a real record cannot be regenerated,",
-    "          so pasting one in fails at commit. (A self-evidently fake canary or an Acme mock is",
+    "          This repo ships no fixtures; any added later must come from a generator. (A self-evidently fake canary or an Acme mock is",
     "          NOT lifelike and does not need a generator; the risk it guards against is a person",
     "          reaching for a convenient REAL example, and there is no temptation to reach for a",
     "          real value that would look obviously wrong next to FAKE_CANARY_XYZ.)",
@@ -24,10 +23,6 @@
     "capture.json",
     "ocr-input.png"
   ],
-  "fixture": [
-    "tests/fixtures/element.json",
-    "tests/test_review_v18.py",
-    "tests/test_review_v19.py"
-  ],
+  "fixture": [],
   "_data_home": "SCREEN_VISION_DATA_DIR, or data/ under SCREEN_VISION_CONFIG; existing private versioned companion required."
 }

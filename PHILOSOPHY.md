@@ -29,8 +29,6 @@ The caller chooses a Set-of-Mark element ID. `click.py` re-resolves its identity
 prefers coordinate-free UIA `Invoke`/`Toggle`/`Select`, and permits a physical
 fallback only after verification. Both paths require fresh Windows UIA identity.
 This limits wrong-control actions caused by spatial estimates or stale geometry.
-The opt-in closed-loop test invokes its owned fixture twice and checks the display;
-offline controls do not establish native input success.
 
 ## P4, Separate observation and action
 

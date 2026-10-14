@@ -41,8 +41,7 @@ Import attempts Per-Monitor-V2, then older setters if an API is unavailable or r
 The reported state comes from the effective thread context, or the process query on older Windows.
 Physical-coordinate operations require `per_monitor_v2` or `per_monitor`; `system`, `unaware`, and
 `unverified` stop capture and actions. Start a fresh process if another library fixed an incompatible
-DPI mode. The opt-in desktop tests compare capture dimensions with monitor geometry; offline tests
-prove return-value handling and refusal behavior, not actual monitor scaling.
+DPI mode.
 
 GDI capture checks every acquisition and copy result, restores the previous bitmap before reading,
 and requires all requested scanlines. Acquisition, copy, partial-read, and cleanup failures report

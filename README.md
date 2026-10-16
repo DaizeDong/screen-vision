@@ -60,8 +60,14 @@ alternative OCR path. `Pillow` also provides annotation.
 Or clone manually:
 
 ```bash
-git clone --recurse-submodules https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
+git clone https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
 ```
+
+Companion storage checks come from the `fleet_guards` package. Clone
+[fleet-guards](https://github.com/DaizeDong/fleet-guards), record it with
+`git config --global fleet.guards <checkout>`, then run `pip install -e "$(git config --get fleet.guards)"`.
+Contributors also run `git config core.hooksPath .githooks` so commits and pushes go through the
+privacy hooks.
 
 Recommended backends (optional, the tool degrades without them):
 

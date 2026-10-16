@@ -9,10 +9,10 @@
     "          reaching for a convenient REAL example, and there is no temptation to reach for a",
     "          real value that would look obviously wrong next to FAKE_CANARY_XYZ.)",
     "DATA    = anything a REAL RUN produced. Versioned only in the private companion",
-    "          config, resolved at runtime by tools/datadir.py. This repo ships only the schema.",
+    "          config, resolved at runtime by the fleet_guards package. This repo ships only the schema.",
     "data_sealed = a path that HELD real data, was purged, and must stay dead.",
     "",
-    "Enforced by tools/data_boundary.py in .githooks and in CI."
+    "Enforced by fleet-guards tools/data_boundary.py through the .githooks shims."
   ],
   "_audited": "Capture output consists of screenshots, UIA/OCR observations and a capture manifest. Writes require an explicitly configured, existing data directory outside this worktree; own-worktree, undeclared and escaping paths fail before capture (path-only; commit and push hooks keep DATA out of public repositories). The sealed root filenames also prevent restoring former repository-relative output. The cropped/masked OCR input also stays inside that private output directory.",
   "data": [],

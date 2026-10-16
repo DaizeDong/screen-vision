@@ -4,13 +4,11 @@ No Git or GitHub call runs at capture time. The configured companion data direct
 exist and sit outside this tool's worktree; every capture artifact must be a declared leaf in
 one new directory directly beneath data/captures/, with no `.git` component and no symlink or
 junction on its path. Keeping DATA out of public repositories is enforced at commit and push
-time by the hooks and CI.
+time by the hooks.
 """
 import os
-import importlib.util
 from functools import lru_cache
 from pathlib import Path
-import sys
 import uuid
 
 TOOL_ROOT = Path(__file__).resolve().parents[3]
@@ -23,20 +21,16 @@ ARTIFACT_NAMES = frozenset({
 
 @lru_cache(maxsize=None)
 def _path_rules():
-    """The pinned guards storage_contract module, loaded once per process."""
-    module_path = TOOL_ROOT / 'guards/tools/storage_contract.py'
+    """The fleet_guards storage_contract module, loaded once per process."""
     try:
-        spec = importlib.util.spec_from_file_location('screen_capture_path_rules', module_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
-    except (OSError, ImportError, AttributeError) as exc:
-        raise RuntimeError('Initialize the pinned guards submodule before capture.') from exc
-    return module
+        from fleet_guards.runtime import storage_contract
+    except ImportError as exc:
+        raise RuntimeError('fleet_guards is not installed; run: pip install -e "$(git config --get fleet.guards)"') from exc
+    return storage_contract()
 
 
 def _no_links(path, *, allow_missing=False):
-    """Refuse a symlink or junction anywhere on the lexical path (pinned guards helper)."""
+    """Refuse a symlink or junction anywhere on the lexical path (fleet_guards helper)."""
     module = _path_rules()
     try:
         return module.no_links(path, allow_missing=allow_missing)

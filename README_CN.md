@@ -51,8 +51,10 @@ Windows 的 GDI 截图和 PNG 写出使用标准库。实际点击还需要 `uia
 或手动克隆：
 
 ```bash
-git clone --recurse-submodules https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
+git clone https://github.com/DaizeDong/screen-vision.git ~/.claude/plugins/screen-vision
 ```
+
+伴生仓存储检查来自 `fleet_guards` 包。先克隆 [fleet-guards](https://github.com/DaizeDong/fleet-guards)，用 `git config --global fleet.guards <checkout>` 记下位置，再运行 `pip install -e "$(git config --get fleet.guards)"`。贡献者还要运行 `git config core.hooksPath .githooks`，让提交和推送经过隐私钩子。
 
 推荐后端（可选，缺了也能降级运行）:
 

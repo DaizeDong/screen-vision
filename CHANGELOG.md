@@ -5,6 +5,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 ## [Unreleased]
 
 ### Changed
+- `artifact_store` resolves capture storage through `fleet_guards.runtime.companion_resolver` instead of reading `SCREEN_VISION_DATA_DIR` / `SCREEN_VISION_CONFIG` / `SCREEN_VISION_CONFIG_DIR` itself. The `SCREEN_VISION_CONFIG_DIR` alias is gone, and a proven sibling `screen-vision-config` clone is now found too.
 - The guards and style submodules are gone. `artifact_store` takes the storage contract from the installed `fleet_guards` package (`fleet_guards.runtime.storage_contract()`); a missing package is an error that names `pip install -e "$(git config --get fleet.guards)"`. The tracked `.githooks/` shims run the local fleet-guards and fleet-style checkouts named by `git config fleet.guards` and `fleet.style`, and the gate and fleet-sync workflows were removed.
 - `artifact_store` loads the guards `storage_contract` module once per process instead of on every link check, and `artifact_directory` checks the data directory once and passes it to each `authorize_capture_artifact` call.
 

@@ -69,7 +69,7 @@ pip install rapidocr-onnxruntime               # OCR(跨平台)
 
 将 `SCREEN_VISION_CONFIG` 指向已有的私有伴生仓，或用
 `SCREEN_VISION_DATA_DIR` 指定其中准确的 `data/` 目录。
-存储只按显式设置查找：DATA_DIR、CONFIG、CONFIG_DIR；切换 CONFIG 前清除继承的
+存储经 fleet_guards 解析器查找：DATA_DIR、CONFIG、再到已证明的同级 `screen-vision-config`；切换 CONFIG 前清除继承的
 DATA_DIR。安装后可以保持未初始化。
 
 截图只检查路径：数据目录须存在且位于工具仓之外，每个产物须是已声明的文件名。

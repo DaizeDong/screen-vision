@@ -6,12 +6,10 @@ remains authoritative for capture fields, action validation, and error receipts.
 
 ## Storage selection and admission
 
-Set `SCREEN_VISION_CONFIG` to an existing separate private companion clone with
-an existing `data/` directory, or `SCREEN_VISION_DATA_DIR` to that exact directory.
-Discovery is explicit-only: `SCREEN_VISION_DATA_DIR` takes precedence over
-`SCREEN_VISION_CONFIG`, then `SCREEN_VISION_CONFIG_DIR`.
-There is no sibling or home fallback. Clear inherited DATA_DIR before switching
-CONFIG. These selectors choose storage, not a settings registry. Missing
+Discovery uses the fleet_guards companion resolver: `SCREEN_VISION_DATA_DIR`,
+then `data/` under `SCREEN_VISION_CONFIG`, then `data/` under a proven sibling
+`screen-vision-config` clone. There is no home fallback. Clear inherited DATA_DIR
+before switching CONFIG. These selectors choose storage, not a settings registry. Missing
 configuration fails before capture; installation can remain uninitialized.
 
 Admission is path-only: no Git or GitHub call runs at capture time, and keeping

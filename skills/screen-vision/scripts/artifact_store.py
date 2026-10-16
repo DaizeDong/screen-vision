@@ -67,15 +67,19 @@ def _overlaps_tool_root(base):
 
 
 def _data_base():
-    """The configured companion data directory; raises with init guidance when missing."""
-    data = os.environ.get('SCREEN_VISION_DATA_DIR')
-    config = os.environ.get('SCREEN_VISION_CONFIG') or os.environ.get('SCREEN_VISION_CONFIG_DIR')
-    if not data and not config:
+    """The companion data directory from the shared resolver; raises with init guidance when missing."""
+    try:
+        from fleet_guards.runtime import companion_resolver
+    except ImportError as exc:
+        raise RuntimeError('fleet_guards is not installed; run: pip install -e "$(git config --get fleet.guards)"') from exc
+    try:
+        root = companion_resolver(source_root=TOOL_ROOT).resolve_data_dir('screen-vision', create=False)
+    except Exception as exc:
+        raise RuntimeError('Capture storage refused: ' + str(exc)) from exc
+    if root is None:
         raise RuntimeError('Uninitialized: set SCREEN_VISION_CONFIG to a private companion clone '
                            'and create its data directory (see DATA.md).')
-    base = Path(data).expanduser() if data else Path(config).expanduser() / 'data'
-    if not base.is_dir():
-        raise RuntimeError('Configured private data directory does not exist; initialize the companion first.')
+    base = Path(root)
     _no_links(base)
     base = base.absolute()
     if _reserved(base):

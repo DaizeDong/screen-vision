@@ -81,7 +81,8 @@ pip install rapidocr-onnxruntime               # OCR (cross-platform)
 
 Select an existing private companion with `SCREEN_VISION_CONFIG`, or its exact
 `data/` directory with `SCREEN_VISION_DATA_DIR`. Storage
-selection is explicit-only: DATA_DIR, CONFIG, then CONFIG_DIR. Clear inherited
+selection goes through the fleet_guards resolver: DATA_DIR, CONFIG, then a proven sibling
+`screen-vision-config`. Clear inherited
 DATA_DIR before switching CONFIG. Installation can remain uninitialized.
 
 Capture checks paths only: the data directory must exist outside this worktree and

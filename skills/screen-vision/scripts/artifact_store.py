@@ -73,7 +73,7 @@ def _data_base():
     except ImportError as exc:
         raise RuntimeError('fleet_guards is not installed; run: pip install -e "$(git config --get fleet.guards)"') from exc
     try:
-        root = companion_resolver(source_root=TOOL_ROOT).resolve_data_dir('screen-vision', create=False)
+        root = companion_resolver(source_root=TOOL_ROOT).resolve_data_dir('screen-vision')
     except Exception as exc:
         raise RuntimeError('Capture storage refused: ' + str(exc)) from exc
     if root is None:
